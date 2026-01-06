@@ -10,7 +10,7 @@ void pm_init(void) {
     esp_pm_config_t config = {
         .max_freq_mhz = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ,
         .min_freq_mhz = CONFIG_XTAL_FREQ,
-        .light_sleep_enable = true
+        .light_sleep_enable = false
     };
     esp_err_t err = esp_pm_configure(&config);
     if (err != ESP_OK) {

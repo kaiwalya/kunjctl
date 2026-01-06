@@ -1,5 +1,6 @@
 build
 .xmake
+managed_components
 
 .claude
 .vscode

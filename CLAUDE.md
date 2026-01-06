@@ -36,5 +36,5 @@ Power management is configured via `sdkconfig.defaults`:
 
 ## Hardware Notes
 
-- Target: ESP32-H2
-- When light sleep is enabled, use the **USB-UART bridge port** (not native USB-Serial/JTAG) as native USB disconnects during sleep
+- ESP32-H2: Has both native USB and USB-UART bridge - use USB-UART for light sleep
+- ESP32-S3: Only has native USB-Serial/JTAG which disconnects during light sleep
