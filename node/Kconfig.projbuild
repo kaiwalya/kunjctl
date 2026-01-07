@@ -19,7 +19,7 @@ menu "Outputs"
 
     menuconfig STATUS_LED_ENABLED
         bool "Status LED strip"
-        default y
+        default n
         help
             Enable RGB LED strip (WS2812) to show activity status.
 
