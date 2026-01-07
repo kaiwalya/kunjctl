@@ -43,37 +43,31 @@ sudo apt install protobuf-compiler
 pip install nanopb
 ```
 
-To regenerate proto files after editing `.proto` schemas:
-
-```bash
-cd node/src/proto
-nanopb_generator messages.proto
-```
+The generated files (`messages.pb.c/.h`) are checked into the repo. Use `xmake codegen` to regenerate after editing `.proto` schemas.
 
 ## Project Structure
 
 ```
 home_automation/
-├── node/                       # Node firmware (sensors, BLE advertising)
+├── components/                   # Shared components
+│   ├── comms/                    # BLE communications
+│   │   ├── comms.c/.h
+│   │   └── proto/                # Protocol buffers
+│   │       ├── messages.proto
+│   │       ├── messages.options
+│   │       └── messages.pb.c/.h  (generated)
+│   ├── device_name/              # Deterministic device name
+│   └── power_management/         # PM init, stats, sleep
+├── node/                         # Node firmware
 │   ├── src/
-│   │   ├── main.c              # Application entry point
-│   │   ├── power_management.c  # PM init and stats logging
-│   │   ├── device_name.c       # Deterministic device name generator
-│   │   ├── comms/              # BLE communications
-│   │   │   └── comms.c/.h      # open/close cycle, send_hello
-│   │   ├── inputs/             # Input devices
-│   │   │   └── sensors.c/.h    # DHT11 temperature/humidity
-│   │   ├── outputs/            # Output devices
-│   │   │   └── status.c/.h     # Status LED (WS2812)
-│   │   ├── proto/              # Protocol buffers
-│   │   │   ├── messages.proto
-│   │   │   └── messages.pb.c/.h
-│   │   └── state/              # Persistent state (NVS)
-│   │       └── state.c/.h      # Pairing state
-│   ├── Kconfig.projbuild       # Inputs/Outputs menuconfig
-│   └── CMakeLists.txt
-├── sdkconfig.defaults          # ESP-IDF Kconfig defaults
-├── CMakeLists.txt
+│   │   ├── main.c
+│   │   ├── inputs/sensors.c/.h   # DHT11/DHT22 temperature/humidity
+│   │   ├── outputs/status.c/.h   # Status LED (WS2812)
+│   │   └── state/state.c/.h      # Pairing state (NVS)
+│   └── Kconfig.projbuild
+├── hub/                          # Hub firmware
+│   └── src/main.c
+├── sdkconfig.defaults
 └── xmake.lua
 ```
 
@@ -126,6 +120,13 @@ xmake menuconfig -s node -c esp32h2
 
 # Show firmware size
 xmake size -s node -c esp32h2
+```
+
+### Code Generation
+
+```bash
+# Regenerate protobuf files after editing .proto schemas
+xmake codegen
 ```
 
 ## Adding Subprojects

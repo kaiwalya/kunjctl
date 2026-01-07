@@ -238,3 +238,27 @@ task("size")
             os.getenv("IDF_PATH"),
             build_dir)
     end)
+
+task("codegen")
+    set_category("plugin")
+    set_menu {
+        usage = "xmake codegen",
+        description = "Regenerate protobuf files with nanopb",
+        options = {}
+    }
+    on_run(function ()
+        local proto_dir = "components/comms/proto"
+        local proto_files = os.files(path.join(proto_dir, "*.proto"))
+        if #proto_files == 0 then
+            print("No .proto files found in " .. proto_dir)
+            return
+        end
+        local old_dir = os.cd(proto_dir)
+        for _, proto_file in ipairs(proto_files) do
+            local filename = path.filename(proto_file)
+            print("Generating: " .. filename)
+            os.exec("nanopb_generator %s", filename)
+        end
+        os.cd(old_dir)
+        print("Codegen complete")
+    end)

@@ -22,20 +22,24 @@ xmake set-target -s node -c esp32h2
 ## Project Structure
 
 ```
-node/src/
-├── main.c                  # Application entry, main loop
-├── power_management.c/.h   # PM init and stats
-├── device_name.c/.h        # Deterministic name from MAC
-├── comms/                  # BLE communications domain
-│   └── comms.c/.h
-├── inputs/                 # Input devices domain
-│   └── sensors.c/.h
-├── outputs/                # Output devices domain
-│   └── status.c/.h
-├── proto/                  # Protocol buffers
-│   └── messages.pb.c/.h
-└── state/                  # Persistent state domain
-    └── state.c/.h
+home-automation/
+├── components/               # Shared components
+│   ├── comms/                # BLE communications
+│   │   ├── comms.c/.h
+│   │   └── proto/            # Protocol buffers
+│   │       ├── messages.proto
+│   │       ├── messages.options
+│   │       └── messages.pb.c/.h  (generated)
+│   ├── device_name/          # Deterministic name from MAC
+│   └── power_management/     # PM init, stats, sleep
+├── node/src/                 # Node firmware
+│   ├── main.c
+│   ├── inputs/sensors.c/.h
+│   ├── outputs/status.c/.h
+│   └── state/state.c/.h
+├── hub/src/                  # Hub firmware
+│   └── main.c
+└── sdkconfig.defaults
 ```
 
 ## Architecture Patterns
@@ -68,9 +72,9 @@ struct sensors_t {
 // #ifdefs only in init, runtime checks elsewhere
 sensors_t *sensors_init(void) {
     sensors_t *s = calloc(1, sizeof(sensors_t));
-    s->sources.dht11 = GPIO_DISABLED;
-#if CONFIG_DHT11_ENABLED
-    s->sources.dht11 = CONFIG_DHT11_GPIO;
+    s->sources.dht = GPIO_DISABLED;
+#if CONFIG_DHT_ENABLED
+    s->sources.dht = CONFIG_DHT_GPIO;
 #endif
     return s;
 }
@@ -108,13 +112,13 @@ Support multiple optional sensors with runtime dispatch:
 
 ```c
 typedef struct {
-    int dht11;           // GPIO or -1 if disabled
+    int dht;             // GPIO or -1 if disabled
     int soil_moisture;   // Future sensors...
 } sensor_sources_t;
 
 esp_err_t sensors_read(sensors_t *s) {
-    if (s->sources.dht11 != GPIO_DISABLED) {
-        read_dht11(s);
+    if (s->sources.dht != GPIO_DISABLED) {
+        read_dht(s);
     }
     // Add more sensors here
     return ESP_OK;
@@ -153,4 +157,51 @@ for (;;) {
     // do work...
     vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(INTERVAL_MS));
 }
+```
+
+## Protocol Buffers (nanopb)
+
+Messages are defined in `components/comms/proto/messages.proto` and compiled with nanopb.
+
+### Files
+
+- `messages.proto` - Message definitions
+- `messages.options` - nanopb options (max string sizes, etc.)
+- `messages.pb.c/.h` - Generated files (checked into repo)
+
+### Regenerating after .proto changes
+
+```bash
+xmake codegen
+```
+
+Or manually:
+
+```bash
+cd components/comms/proto
+nanopb_generator messages.proto
+```
+
+### Options file format
+
+The `.options` file constrains sizes for embedded use:
+
+```
+# Field-specific options
+Hello.device_id  max_size:32
+```
+
+### Usage pattern
+
+nanopb is a private dependency of the comms component. The comms module exposes mirror types to avoid leaking nanopb into public headers:
+
+```c
+// comms.h - public types (no nanopb dependency)
+typedef enum { COMMS_SOURCE_NODE, COMMS_SOURCE_HUB } comms_source_t;
+typedef struct {
+    comms_source_t source_type;
+    char device_id[32];
+} comms_hello_t;
+
+// comms.c - converts between nanopb Hello and comms_hello_t internally
 ```
