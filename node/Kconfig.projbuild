@@ -1,5 +1,19 @@
 menu "Inputs"
 
+    menuconfig FACTORY_RESET_BUTTON_ENABLED
+        bool "Factory reset button"
+        default n
+        help
+            Enable factory reset via button held at boot.
+
+    config FACTORY_RESET_BUTTON_GPIO
+        int "Factory reset button GPIO"
+        default 9
+        depends on FACTORY_RESET_BUTTON_ENABLED
+        help
+            GPIO for factory reset button (active low).
+            Default 9 is the BOOT button on ESP32-H2-DevKitM.
+
     menuconfig DHT11_ENABLED
         bool "DHT11 Temperature/Humidity"
         default n

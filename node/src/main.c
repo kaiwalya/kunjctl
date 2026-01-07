@@ -17,6 +17,16 @@ static const char *TAG = "node";
 #define UNPAIRED_ADV_DURATION_MS    2000   /* Broadcast Hello for 2 seconds */
 #define UNPAIRED_SCAN_DURATION_MS   8000   /* Listen for hub Hello for 8 seconds */
 
+/*── Factory Reset ──*/
+
+#if CONFIG_FACTORY_RESET_BUTTON_ENABLED
+static void on_factory_reset_button(gpio_num_t gpio) {
+    ESP_LOGW(TAG, "Factory reset triggered via GPIO%d", gpio);
+    nvs_flash_erase();
+    pm_restart();
+}
+#endif
+
 /*── Unpaired Mode ──*/
 
 static volatile bool g_hub_seen = false;
@@ -71,12 +81,16 @@ void app_main(void)
     char device_name[32];
     device_name_get(device_name, sizeof(device_name));
     ESP_LOGI(TAG, "Booting node %s", device_name);
-    
+
     /* Initialize power management */
     pm_config_t pm_cfg = {
-        .num_wake_gpios = 0,
         .light_sleep_enable = false,  // TODO: enable for production
         .stats_interval_ms = PM_STATS_INTERVAL_MS,
+#if CONFIG_FACTORY_RESET_BUTTON_ENABLED
+        .wake_gpios = { { .gpio = CONFIG_FACTORY_RESET_BUTTON_GPIO, .active_low = true } },
+        .num_wake_gpios = 1,
+        .wake_cb = on_factory_reset_button,
+#endif
     };
     pm_init(&pm_cfg);
     
