@@ -11,8 +11,9 @@ static const char *TAG = "pm";
 static uint32_t stats_interval_ms = 10000;
 
 static void pm_stats_task(void *arg) {
+    TickType_t last_wake = xTaskGetTickCount();
     for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(stats_interval_ms));
+        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(stats_interval_ms));
         pm_log_stats();
     }
 }

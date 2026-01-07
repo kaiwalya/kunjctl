@@ -8,6 +8,8 @@
 #include "sensors.h"
 #include "device_name.h"
 
+#include "state/state.h"
+
 /* NimBLE */
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
@@ -17,9 +19,9 @@
 static const char *TAG = "node";
 static volatile bool ble_synced = false;
 
-#define BLE_SCAN_DURATION_MS   3000
-#define BLE_SCAN_INTERVAL_MS   60000
-#define PM_STATS_INTERVAL_MS   10000
+#define BLE_SCAN_DURATION_MS    3000
+#define MAIN_LOOP_INTERVAL_MS   10000
+#define PM_STATS_INTERVAL_MS    60000
 
 /* Called for each advertisement discovered */
 static int on_scan_event(struct ble_gap_event *event, void *arg) {
@@ -99,9 +101,22 @@ static void ble_deinit(void) {
 
 void app_main(void)
 {
+    /* Initialize status LED */
+    status_init();
+    status_set_busy(true);
+    
+    /* Initialize power management */
+    pm_config_t pm_cfg = {
+        .num_wake_gpios = 0,
+        .light_sleep_enable = true,
+        .stats_interval_ms = PM_STATS_INTERVAL_MS,
+    };
+    pm_init(&pm_cfg);
+    
     char device_name[32];
     device_name_get(device_name, sizeof(device_name));
     ESP_LOGI(TAG, "Booting %s", device_name);
+
 
     /* Initialize NVS once (required for BLE) */
     esp_err_t ret = nvs_flash_init();
@@ -110,33 +125,51 @@ void app_main(void)
         nvs_flash_init();
     }
 
+    /* Initialize state */
+    state_t *state = state_init();
+    if (!state) {
+        ESP_LOGE(TAG, "Failed to initialize state");
+        return;
+    }
 
-    /* Initialize status LED */
-    status_init();
-
+    const pairing_state_t pairing_state = state_get_pairing(state);
+    if (pairing_state == PAIRING_STATE_UNPAIRED) {
+        ESP_LOGW(TAG, "Device is unpaired, only sensor data will be broadcasted");
+    }
+    
     /* Initialize sensors */
-    sensors_init();
+    sensors_t *sensors = sensors_init();
+    if (!sensors) {
+        ESP_LOGE(TAG, "Failed to initialize sensors");
+        return;
+    }
 
-    /* Initialize power management */
-    pm_config_t pm_cfg = {
-        .num_wake_gpios = 0,
-        .light_sleep_enable = true,
-        .stats_interval_ms = PM_STATS_INTERVAL_MS,
-    };
-    pm_init(&pm_cfg);
+    
 
-    ESP_LOGI(TAG, "Starting scan loop (scan %dms every %dms)",
-             BLE_SCAN_DURATION_MS, BLE_SCAN_INTERVAL_MS);
+    ESP_LOGI(TAG, "Starting main loop (every %d seconds)",
+             MAIN_LOOP_INTERVAL_MS / 1000);
 
-    /* Main loop: init, scan, deinit, sleep */
+    status_set_busy(false);
+
+    TickType_t last_wake = xTaskGetTickCount();
+
+    /* Main loop */
     for (;;) {
         status_set_busy(true);
-        ble_init();
-        scan_for_devices(BLE_SCAN_DURATION_MS);
-        ble_deinit();
+        // ble_init();
+        // scan_for_devices(BLE_SCAN_DURATION_MS);
+        // ble_deinit();
+
+        /* Read sensors */
+        sensors_read(sensors);
+        const float *temp = sensors_get_temperature(sensors);
+        const float *hum = sensors_get_humidity(sensors);
+        if (temp) ESP_LOGI(TAG, "Temperature: %.1f C", *temp);
+        if (hum)  ESP_LOGI(TAG, "Humidity: %.1f %%", *hum);
+
         status_set_busy(false);
 
-        ESP_LOGI(TAG, "Sleeping for %d seconds...", BLE_SCAN_INTERVAL_MS / 1000);
-        vTaskDelay(pdMS_TO_TICKS(BLE_SCAN_INTERVAL_MS));
+        /* Sleep until next interval (accounts for time spent working) */
+        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(MAIN_LOOP_INTERVAL_MS));
     }
 }
