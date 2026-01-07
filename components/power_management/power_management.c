@@ -83,3 +83,9 @@ void pm_log_stats(void) {
     vTaskList(buf);
     log_multiline(buf);
 }
+
+void pm_deep_sleep(void) {
+    ESP_LOGI(TAG, "Entering deep sleep (reset to wake)");
+    esp_deep_sleep_start();
+    /* Never reached */
+}

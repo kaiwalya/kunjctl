@@ -1,5 +1,0 @@
-syntax = "proto3";
-
-message Hello {
-  string device_id = 1;
-}

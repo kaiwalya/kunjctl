@@ -9,8 +9,15 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
+/* Enum definitions */
+typedef enum _SourceType {
+    SourceType_SOURCE_TYPE_NODE = 0,
+    SourceType_SOURCE_TYPE_HUB = 1
+} SourceType;
+
 /* Struct definitions */
 typedef struct _Hello {
+    SourceType source_type;
     char device_id[32];
 } Hello;
 
@@ -19,16 +26,26 @@ typedef struct _Hello {
 extern "C" {
 #endif
 
+/* Helper constants for enums */
+#define _SourceType_MIN SourceType_SOURCE_TYPE_NODE
+#define _SourceType_MAX SourceType_SOURCE_TYPE_HUB
+#define _SourceType_ARRAYSIZE ((SourceType)(SourceType_SOURCE_TYPE_HUB+1))
+
+#define Hello_source_type_ENUMTYPE SourceType
+
+
 /* Initializer values for message structs */
-#define Hello_init_default                       {""}
-#define Hello_init_zero                          {""}
+#define Hello_init_default                       {_SourceType_MIN, ""}
+#define Hello_init_zero                          {_SourceType_MIN, ""}
 
 /* Field tags (for use in manual encoding/decoding) */
-#define Hello_device_id_tag                      1
+#define Hello_source_type_tag                    1
+#define Hello_device_id_tag                      2
 
 /* Struct field encoding specification for nanopb */
 #define Hello_FIELDLIST(X, a) \
-X(a, STATIC,   SINGULAR, STRING,   device_id,         1)
+X(a, STATIC,   SINGULAR, UENUM,    source_type,       1) \
+X(a, STATIC,   SINGULAR, STRING,   device_id,         2)
 #define Hello_CALLBACK NULL
 #define Hello_DEFAULT NULL
 
@@ -38,7 +55,7 @@ extern const pb_msgdesc_t Hello_msg;
 #define Hello_fields &Hello_msg
 
 /* Maximum encoded size of messages (where known) */
-#define Hello_size                               33
+#define Hello_size                               35
 #define MESSAGES_PB_H_MAX_SIZE                   Hello_size
 
 #ifdef __cplusplus

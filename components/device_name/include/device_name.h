@@ -4,8 +4,8 @@
 
 /**
  * Get deterministic device name based on chip ID.
- * Format: "node-{adjective}-{noun}-{hex}"
- * Example: "node-swift-falcon-a3f2"
+ * Format: "{adjective}-{noun}-{hex}"
+ * Example: "swift-falcon-a3f2"
  *
  * Same device always returns same name.
  *

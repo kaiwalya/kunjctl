@@ -15,3 +15,6 @@ typedef struct {
 
 void pm_init(const pm_config_t *config);
 void pm_log_stats(void);
+
+/* Enter deep sleep with no wake source (only reset wakes) */
+void pm_deep_sleep(void) __attribute__((noreturn));

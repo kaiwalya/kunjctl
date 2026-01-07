@@ -34,5 +34,5 @@ void device_name_get(char *buf, size_t len) {
     const char *adj = adjectives[seed % NUM_ADJ];
     const char *noun = nouns[(seed / NUM_ADJ) % NUM_NOUNS];
 
-    snprintf(buf, len, "node-%s-%s-%04x", adj, noun, suffix);
+    snprintf(buf, len, "%s-%s-%04x", adj, noun, suffix);
 }

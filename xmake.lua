@@ -10,7 +10,7 @@ set_version("0.1.0")
 ----------------------------------------------------------------------
 
 local chips = {"esp32h2", "esp32s3"}
-local subprojects = {"node"}  -- Add more subprojects here later (e.g., "hub")
+local subprojects = {"node", "hub"}
 
 for _, subproject in ipairs(subprojects) do
     for _, chip in ipairs(chips) do
@@ -45,8 +45,8 @@ target("all")
     set_kind("phony")
     set_default(true)
     on_build(function ()
-        for _, subproject in ipairs({"node"}) do
-            for _, chip in ipairs({"esp32h2", "esp32s3"}) do
+        for _, subproject in ipairs(subprojects) do
+            for _, chip in ipairs(chips) do
                 local build_dir = path.join("build", subproject, chip)
                 os.exec('%s/bin/python3 "%s/tools/idf.py" -B %s build',
                     os.getenv("IDF_PYTHON_ENV_PATH"),
@@ -75,11 +75,11 @@ task("set-target")
         local subproject = option.get("subproject") or "all"
         local chip = option.get("chip") or "all"
 
-        local subprojects = {"node"}
-        local chips = {"esp32h2", "esp32s3"}
+        local all_subprojects = {"node", "hub"}
+        local all_chips = {"esp32h2", "esp32s3"}
 
-        local proj_list = subproject == "all" and subprojects or {subproject}
-        local chip_list = chip == "all" and chips or {chip}
+        local proj_list = subproject == "all" and all_subprojects or {subproject}
+        local chip_list = chip == "all" and all_chips or {chip}
 
         for _, p in ipairs(proj_list) do
             for _, c in ipairs(chip_list) do

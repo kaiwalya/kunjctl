@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+enum SourceType {
+  SOURCE_TYPE_NODE = 0;
+  SOURCE_TYPE_HUB = 1;
+}
+
+message Hello {
+  SourceType source_type = 1;
+  string device_id = 2;
+}
