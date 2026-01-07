@@ -6,11 +6,11 @@ set_version("0.1.0")
 
 ----------------------------------------------------------------------
 -- Build targets (phony)
--- Creates targets like: main-esp32h2, main-esp32s3
+-- Creates targets like: node-esp32h2, node-esp32s3
 ----------------------------------------------------------------------
 
 local chips = {"esp32h2", "esp32s3"}
-local subprojects = {"main"}  -- Add more subprojects here later
+local subprojects = {"node"}  -- Add more subprojects here later (e.g., "hub")
 
 for _, subproject in ipairs(subprojects) do
     for _, chip in ipairs(chips) do
@@ -45,7 +45,7 @@ target("all")
     set_kind("phony")
     set_default(true)
     on_build(function ()
-        for _, subproject in ipairs({"main"}) do
+        for _, subproject in ipairs({"node"}) do
             for _, chip in ipairs({"esp32h2", "esp32s3"}) do
                 local build_dir = path.join("build", subproject, chip)
                 os.exec('%s/bin/python3 "%s/tools/idf.py" -B %s build',
@@ -75,7 +75,7 @@ task("set-target")
         local subproject = option.get("subproject") or "all"
         local chip = option.get("chip") or "all"
 
-        local subprojects = {"main"}
+        local subprojects = {"node"}
         local chips = {"esp32h2", "esp32s3"}
 
         local proj_list = subproject == "all" and subprojects or {subproject}
@@ -109,7 +109,7 @@ task("flash")
         local chip = option.get("chip")
         local port = option.get("port")
         if not subproject or not chip then
-            raise("required: xmake flash -s main -c esp32h2")
+            raise("required: xmake flash -s node -c esp32h2")
         end
         local build_dir = path.join("build", subproject, chip)
         if port then
@@ -142,7 +142,7 @@ task("monitor")
         local chip = option.get("chip")
         local port = option.get("port")
         if not subproject or not chip then
-            raise("required: xmake monitor -s main -c esp32h2")
+            raise("required: xmake monitor -s node -c esp32h2")
         end
         local build_dir = path.join("build", subproject, chip)
         if port then
@@ -175,7 +175,7 @@ task("fm")
         local chip = option.get("chip")
         local port = option.get("port")
         if not subproject or not chip then
-            raise("required: xmake fm -s main -c esp32h2")
+            raise("required: xmake fm -s node -c esp32h2")
         end
         local build_dir = path.join("build", subproject, chip)
         if port then
@@ -206,7 +206,7 @@ task("menuconfig")
         local subproject = option.get("subproject")
         local chip = option.get("chip")
         if not subproject or not chip then
-            raise("required: xmake menuconfig -s main -c esp32h2")
+            raise("required: xmake menuconfig -s node -c esp32h2")
         end
         local build_dir = path.join("build", subproject, chip)
         os.exec('%s/bin/python3 "%s/tools/idf.py" -B %s menuconfig',
@@ -230,7 +230,7 @@ task("size")
         local subproject = option.get("subproject")
         local chip = option.get("chip")
         if not subproject or not chip then
-            raise("required: xmake size -s main -c esp32h2")
+            raise("required: xmake size -s node -c esp32h2")
         end
         local build_dir = path.join("build", subproject, chip)
         os.exec('%s/bin/python3 "%s/tools/idf.py" -B %s size',

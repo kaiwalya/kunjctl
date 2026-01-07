@@ -1,0 +1,18 @@
+menu "Node Config"
+
+    config NODE_LED_ENABLED
+        bool "Enable activity LED"
+        default y
+        help
+            Enable RGB LED to show activity status.
+            Red = working, Off = sleeping.
+
+    config NODE_LED_GPIO
+        int "LED GPIO"
+        default 8
+        depends on NODE_LED_ENABLED
+        help
+            GPIO for the RGB LED (WS2812).
+            ESP32-H2-DevKitM uses GPIO8.
+
+endmenu
