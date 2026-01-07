@@ -1,18 +1,46 @@
-menu "Node Config"
+menu "Inputs"
 
-    config NODE_LED_ENABLED
-        bool "Enable activity LED"
+    menuconfig DHT11_ENABLED
+        bool "DHT11 Temperature/Humidity"
+        default n
+        help
+            Enable DHT11 temperature and humidity sensor.
+
+    config DHT11_GPIO
+        int "DHT11 data GPIO"
+        default 4
+        depends on DHT11_ENABLED
+        help
+            GPIO for the DHT11 data pin.
+
+endmenu
+
+menu "Outputs"
+
+    menuconfig STATUS_LED_ENABLED
+        bool "Status LED strip"
         default y
         help
-            Enable RGB LED to show activity status.
-            Red = working, Off = sleeping.
+            Enable RGB LED strip (WS2812) to show activity status.
 
-    config NODE_LED_GPIO
-        int "LED GPIO"
+    config STATUS_LED_GPIO
+        int "Status LED GPIO"
         default 8
-        depends on NODE_LED_ENABLED
+        depends on STATUS_LED_ENABLED
         help
             GPIO for the RGB LED (WS2812).
-            ESP32-H2-DevKitM uses GPIO8.
+
+    menuconfig RELAY_ENABLED
+        bool "Relay"
+        default n
+        help
+            Enable relay control output.
+
+    config RELAY_GPIO
+        int "Relay GPIO"
+        default 0
+        depends on RELAY_ENABLED
+        help
+            GPIO for the relay control signal.
 
 endmenu

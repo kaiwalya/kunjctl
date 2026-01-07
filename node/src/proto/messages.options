@@ -1,0 +1,2 @@
+# Nanopb options - constrain sizes for embedded use
+Hello.device_id  max_size:32

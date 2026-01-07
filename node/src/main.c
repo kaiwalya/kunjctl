@@ -5,6 +5,8 @@
 #include "esp_bt.h"
 #include "power_management.h"
 #include "status.h"
+#include "sensors.h"
+#include "device_name.h"
 
 /* NimBLE */
 #include "nimble/nimble_port.h"
@@ -97,6 +99,10 @@ static void ble_deinit(void) {
 
 void app_main(void)
 {
+    char device_name[32];
+    device_name_get(device_name, sizeof(device_name));
+    ESP_LOGI(TAG, "Booting %s", device_name);
+
     /* Initialize NVS once (required for BLE) */
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -104,8 +110,12 @@ void app_main(void)
         nvs_flash_init();
     }
 
+
     /* Initialize status LED */
     status_init();
+
+    /* Initialize sensors */
+    sensors_init();
 
     /* Initialize power management */
     pm_config_t pm_cfg = {
@@ -120,11 +130,11 @@ void app_main(void)
 
     /* Main loop: init, scan, deinit, sleep */
     for (;;) {
-        status_set(16, 0, 0);  /* Red = scanning */
+        status_set_busy(true);
         ble_init();
         scan_for_devices(BLE_SCAN_DURATION_MS);
         ble_deinit();
-        status_off();
+        status_set_busy(false);
 
         ESP_LOGI(TAG, "Sleeping for %d seconds...", BLE_SCAN_INTERVAL_MS / 1000);
         vTaskDelay(pdMS_TO_TICKS(BLE_SCAN_INTERVAL_MS));

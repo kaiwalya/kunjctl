@@ -29,21 +29,48 @@ curl -fsSL https://xmake.io/shget.text | bash
 winget install xmake
 ```
 
+### Protocol Buffers (for message serialization)
+
+Install protobuf compiler and nanopb generator:
+
+```bash
+# macOS
+brew install protobuf
+pip install nanopb
+
+# Linux
+sudo apt install protobuf-compiler
+pip install nanopb
+```
+
+To regenerate proto files after editing `.proto` schemas:
+
+```bash
+cd node/proto
+nanopb_generator messages.proto
+```
+
 ## Project Structure
 
 ```
 home_automation/
-├── main/                   # Main application source
-│   ├── CMakeLists.txt
+├── node/                   # Node firmware (sensors, BLE)
 │   ├── main.c
-│   ├── power_management.c  # PM init and stats logging
-│   └── power_management.h
+│   ├── power_management.c/.h
+│   ├── ble_adv.c/.h
+│   ├── Kconfig.projbuild   # Inputs/Outputs config
+│   ├── inputs/
+│   │   └── sensors.c/.h    # DHT11, etc.
+│   ├── outputs/
+│   │   └── status.c/.h     # Status LED, relay
+│   └── proto/
+│       ├── messages.proto  # Protocol definitions
+│       └── messages.options
 ├── build/
-│   └── <subproject>/
-│       └── <chip>/         # Build artifacts per target
-├── sdkconfig.defaults      # ESP-IDF Kconfig defaults
-├── CMakeLists.txt          # ESP-IDF project config
-└── xmake.lua               # Build orchestration
+│   └── <subproject>/<chip>/
+├── sdkconfig.defaults
+├── CMakeLists.txt
+└── xmake.lua
 ```
 
 ## Build Commands
@@ -55,18 +82,18 @@ home_automation/
 xmake set-target
 
 # Or configure specific target
-xmake set-target -s main -c esp32h2
+xmake set-target -s node -c esp32h2
 ```
 
 ### Building
 
 ```bash
 # Build specific target (recommended)
-xmake build main-esp32h2
-xmake build main-esp32s3
+xmake build node-esp32h2
+xmake build node-esp32s3
 
 # Clean
-xmake clean main-esp32h2
+xmake clean node-esp32h2
 ```
 
 > **Warning**: Do NOT build multiple targets in parallel (`xmake` without a specific target). This causes race conditions and corrupted build artifacts.
@@ -75,26 +102,26 @@ xmake clean main-esp32h2
 
 ```bash
 # Flash firmware
-xmake flash -s main -c esp32h2
+xmake flash -s node -c esp32h2
 
 # Serial monitor
-xmake monitor -s main -c esp32h2
+xmake monitor -s node -c esp32h2
 
 # Flash and monitor
-xmake fm -s main -c esp32h2
+xmake fm -s node -c esp32h2
 
 # Specify port
-xmake flash -s main -c esp32h2 -p /dev/tty.usbserial-0001
+xmake flash -s node -c esp32h2 -p /dev/tty.usbserial-0001
 ```
 
 ### Configuration
 
 ```bash
 # Open menuconfig
-xmake menuconfig -s main -c esp32h2
+xmake menuconfig -s node -c esp32h2
 
 # Show firmware size
-xmake size -s main -c esp32h2
+xmake size -s node -c esp32h2
 ```
 
 ## Adding Subprojects
