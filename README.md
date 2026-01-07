@@ -46,7 +46,7 @@ pip install nanopb
 To regenerate proto files after editing `.proto` schemas:
 
 ```bash
-cd node/proto
+cd node/src/proto
 nanopb_generator messages.proto
 ```
 
@@ -54,21 +54,25 @@ nanopb_generator messages.proto
 
 ```
 home_automation/
-├── node/                   # Node firmware (sensors, BLE)
-│   ├── main.c
-│   ├── power_management.c/.h
-│   ├── ble_adv.c/.h
-│   ├── Kconfig.projbuild   # Inputs/Outputs config
-│   ├── inputs/
-│   │   └── sensors.c/.h    # DHT11, etc.
-│   ├── outputs/
-│   │   └── status.c/.h     # Status LED, relay
-│   └── proto/
-│       ├── messages.proto  # Protocol definitions
-│       └── messages.options
-├── build/
-│   └── <subproject>/<chip>/
-├── sdkconfig.defaults
+├── node/                       # Node firmware (sensors, BLE advertising)
+│   ├── src/
+│   │   ├── main.c              # Application entry point
+│   │   ├── power_management.c  # PM init and stats logging
+│   │   ├── device_name.c       # Deterministic device name generator
+│   │   ├── comms/              # BLE communications
+│   │   │   └── comms.c/.h      # open/close cycle, send_hello
+│   │   ├── inputs/             # Input devices
+│   │   │   └── sensors.c/.h    # DHT11 temperature/humidity
+│   │   ├── outputs/            # Output devices
+│   │   │   └── status.c/.h     # Status LED (WS2812)
+│   │   ├── proto/              # Protocol buffers
+│   │   │   ├── messages.proto
+│   │   │   └── messages.pb.c/.h
+│   │   └── state/              # Persistent state (NVS)
+│   │       └── state.c/.h      # Pairing state
+│   ├── Kconfig.projbuild       # Inputs/Outputs menuconfig
+│   └── CMakeLists.txt
+├── sdkconfig.defaults          # ESP-IDF Kconfig defaults
 ├── CMakeLists.txt
 └── xmake.lua
 ```
