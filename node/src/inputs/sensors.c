@@ -11,7 +11,8 @@ static const char *TAG = "sensors";
 
 /* Sensor sources - GPIO pins for each sensor type */
 typedef struct {
-    int dht11;
+    int dht;
+    dht_sensor_type_t dht_type;
 } sensor_sources_t;
 
 struct sensors_t {
@@ -28,15 +29,15 @@ struct sensors_t {
 
 /*── Internal readers ──*/
 
-static void read_dht11(sensors_t *s) {
+static void read_dht(sensors_t *s) {
     float t, h;
-    if (dht_read_float_data(DHT_TYPE_DHT11, s->sources.dht11, &h, &t) == ESP_OK) {
+    if (dht_read_float_data(s->sources.dht_type, s->sources.dht, &h, &t) == ESP_OK) {
         s->temperature = t;
         s->humidity = h;
         s->has_temperature = true;
         s->has_humidity = true;
     } else {
-        ESP_LOGE(TAG, "DHT11 read failed");
+        ESP_LOGE(TAG, "DHT read failed");
     }
 }
 
@@ -47,12 +48,18 @@ sensors_t *sensors_init(void) {
     if (!s) return NULL;
 
     /* Initialize all sources as disabled */
-    s->sources.dht11 = GPIO_DISABLED;
+    s->sources.dht = GPIO_DISABLED;
 
     /* Configure sources based on Kconfig (only #ifdefs in this file) */
-#if CONFIG_DHT11_ENABLED
-    s->sources.dht11 = CONFIG_DHT11_GPIO;
-    ESP_LOGI(TAG, "DHT11 on GPIO %d", s->sources.dht11);
+#if CONFIG_DHT_ENABLED
+    s->sources.dht = CONFIG_DHT_GPIO;
+#if CONFIG_DHT_TYPE_DHT22
+    s->sources.dht_type = DHT_TYPE_AM2301;
+    ESP_LOGI(TAG, "DHT22 on GPIO %d", s->sources.dht);
+#else
+    s->sources.dht_type = DHT_TYPE_DHT11;
+    ESP_LOGI(TAG, "DHT11 on GPIO %d", s->sources.dht);
+#endif
 #endif
 
     return s;
@@ -63,8 +70,8 @@ void sensors_deinit(sensors_t *sensors) {
 }
 
 esp_err_t sensors_read(sensors_t *sensors) {
-    if (sensors->sources.dht11 != GPIO_DISABLED) {
-        read_dht11(sensors);
+    if (sensors->sources.dht != GPIO_DISABLED) {
+        read_dht(sensors);
     }
     return ESP_OK;
 }

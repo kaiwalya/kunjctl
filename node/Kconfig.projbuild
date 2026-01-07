@@ -14,18 +14,34 @@ menu "Inputs"
             GPIO for factory reset button (active low).
             Default 9 is the BOOT button on ESP32-H2-DevKitM.
 
-    menuconfig DHT11_ENABLED
-        bool "DHT11 Temperature/Humidity"
+    menuconfig DHT_ENABLED
+        bool "DHT Temperature/Humidity sensor"
         default n
         help
-            Enable DHT11 temperature and humidity sensor.
+            Enable DHT temperature and humidity sensor.
 
-    config DHT11_GPIO
-        int "DHT11 data GPIO"
+    choice DHT_TYPE
+        prompt "DHT sensor type"
+        depends on DHT_ENABLED
+        default DHT_TYPE_DHT11
+
+        config DHT_TYPE_DHT11
+            bool "DHT11"
+            help
+                DHT11 sensor (0-50°C, 1°C resolution)
+
+        config DHT_TYPE_DHT22
+            bool "DHT22/AM2301"
+            help
+                DHT22/AM2301 sensor (-40-80°C, 0.1°C resolution)
+    endchoice
+
+    config DHT_GPIO
+        int "DHT data GPIO"
         default 4
-        depends on DHT11_ENABLED
+        depends on DHT_ENABLED
         help
-            GPIO for the DHT11 data pin.
+            GPIO for the DHT data pin.
 
 endmenu
 
