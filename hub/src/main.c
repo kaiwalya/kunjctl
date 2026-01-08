@@ -15,18 +15,28 @@ static const char *TAG = "hub";
 #define HELLO_RESPONSE_MS           2000
 #define MAX_MESSAGES                16
 
+/*── Message Deduplication ──*/
+
+#define SEEN_IDS_SIZE 32
+static uint32_t seen_ids[SEEN_IDS_SIZE];
+static int seen_ids_idx = 0;
+
+static bool already_seen(uint32_t id) {
+    for (int i = 0; i < SEEN_IDS_SIZE; i++) {
+        if (seen_ids[i] == id) return true;
+    }
+    seen_ids[seen_ids_idx] = id;
+    seen_ids_idx = (seen_ids_idx + 1) % SEEN_IDS_SIZE;
+    return false;
+}
+
 /*── Message Collection ──*/
 
 static comms_message_t g_messages[MAX_MESSAGES];
 static int g_message_count = 0;
 
 static void on_message(const comms_message_t *msg) {
-    /* Dedupe by message_id */
-    for (int i = 0; i < g_message_count; i++) {
-        if (g_messages[i].message_id == msg->message_id) {
-            return;
-        }
-    }
+    if (already_seen(msg->message_id)) return;
 
     if (g_message_count >= MAX_MESSAGES) {
         ESP_LOGW(TAG, "Message buffer full, dropping from %s", msg->device_id);

@@ -1,5 +1,7 @@
 #include "comms.h"
 #include "esp_log.h"
+#include "esp_timer.h"
+#include "esp_random.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -39,8 +41,11 @@ static comms_source_t g_source;
 static uint8_t g_own_addr_type;
 static volatile bool g_synced = false;
 
-/* Message ID counter for deduping */
-static uint32_t g_message_id_counter = 0;
+/* Generate unique message ID: upper 16 bits = time (ms), lower 16 bits = random */
+static uint32_t generate_message_id(void) {
+    uint32_t time_ms = (uint32_t)(esp_timer_get_time() / 1000);
+    return ((time_ms & 0xFFFF) << 16) | (esp_random() & 0xFFFF);
+}
 
 /* Advertising completion semaphore */
 static SemaphoreHandle_t g_adv_complete_sem = NULL;
@@ -398,7 +403,6 @@ static esp_err_t advertise_for(uint32_t duration_ms) {
 esp_err_t comms_init(const char *device_id, comms_source_t source) {
     strncpy(g_device_id, device_id, sizeof(g_device_id) - 1);
     g_source = source;
-    g_message_id_counter = 0;
 
     const char *type_str = (source == COMMS_SOURCE_HUB) ? "hub" : "node";
     ESP_LOGI(TAG, "Comms initialized as '%s' (%s)", device_id, type_str);
@@ -441,7 +445,7 @@ void comms_close(void) {
 
 esp_err_t comms_send_hello_for(uint32_t duration_ms) {
     Message msg = Message_init_zero;
-    msg.message_id = ++g_message_id_counter;
+    msg.message_id = generate_message_id();
     msg.type = MessageType_MESSAGE_TYPE_HELLO;
     msg.which_payload = Message_hello_tag;
     msg.payload.hello.source_type = (g_source == COMMS_SOURCE_HUB)
@@ -459,7 +463,7 @@ esp_err_t comms_send_hello_for(uint32_t duration_ms) {
 
 esp_err_t comms_send_report_for(const comms_report_t *report, uint32_t duration_ms) {
     Message msg = Message_init_zero;
-    msg.message_id = ++g_message_id_counter;
+    msg.message_id = generate_message_id();
     msg.type = MessageType_MESSAGE_TYPE_REPORT;
     msg.which_payload = Message_report_tag;
     strncpy(msg.payload.report.device_id, g_device_id, sizeof(msg.payload.report.device_id) - 1);
