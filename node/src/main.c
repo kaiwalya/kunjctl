@@ -8,6 +8,7 @@
 #include "comms.h"
 #include "status.h"
 #include "sensors.h"
+#include "relay.h"
 #include "state/state.h"
 
 static const char *TAG = "node";
@@ -122,7 +123,14 @@ void app_main(void)
         return;
     }
 
-    
+    /* Initialize relay */
+    relay_t *relay = relay_init();
+    if (!relay) {
+        ESP_LOGE(TAG, "Failed to initialize relay");
+        return;
+    }
+
+
 
     ESP_LOGI(TAG, "Starting main loop (every %d seconds)",
              MAIN_LOOP_INTERVAL_MS / 1000);
@@ -147,7 +155,8 @@ void app_main(void)
 
         comms_report_t report = {
             .temperature_c = temp,
-            .humidity_pct = hum
+            .humidity_pct = hum,
+            .relay_state = relay_get_state(relay)
         };
         comms_send_report_for(&report, REPORT_DURATION_MS);
 
