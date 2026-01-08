@@ -4,10 +4,13 @@ cmake_minimum_required(VERSION 3.16)
 
 set(SDKCONFIG "${CMAKE_BINARY_DIR}/sdkconfig")
 
-# Determine subproject from build directory path (e.g., build/node/esp32h2 -> node)
-get_filename_component(BUILD_CHIP ${CMAKE_BINARY_DIR} NAME)
-get_filename_component(BUILD_PARENT ${CMAKE_BINARY_DIR} DIRECTORY)
-get_filename_component(SUBPROJECT ${BUILD_PARENT} NAME)
+# Determine subproject from build directory path
+# Structure: build/<subproject>/<chip>/<name>/ (e.g., build/node/esp32h2/devkitm)
+get_filename_component(BUILD_SETUP ${CMAKE_BINARY_DIR} NAME)        # devkitm
+get_filename_component(BUILD_CHIP_DIR ${CMAKE_BINARY_DIR} DIRECTORY) # build/node/esp32h2
+get_filename_component(BUILD_CHIP ${BUILD_CHIP_DIR} NAME)            # esp32h2
+get_filename_component(BUILD_SUBPROJ_DIR ${BUILD_CHIP_DIR} DIRECTORY) # build/node
+get_filename_component(SUBPROJECT ${BUILD_SUBPROJ_DIR} NAME)         # node
 
 # Include the subproject and shared components
 set(EXTRA_COMPONENT_DIRS

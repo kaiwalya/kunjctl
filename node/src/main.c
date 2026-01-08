@@ -16,7 +16,7 @@ static const char *TAG = "node";
 #define PM_STATS_INTERVAL_MS        60000
 #define UNPAIRED_ADV_DURATION_MS    2000   /* Broadcast Hello for 2 seconds */
 #define UNPAIRED_SCAN_DURATION_MS   8000   /* Listen for hub Hello for 8 seconds */
-#define REPORT_DURATION_MS          500   /* Broadcast report for 2 seconds */
+#define REPORT_DURATION_MS          500   /* Broadcast report for 500ms */
 
 /*── Factory Reset ──*/
 
@@ -34,6 +34,7 @@ static void app_main_unpaired(state_t *state) __attribute__((noreturn));
 
 static void app_main_unpaired(state_t *state) {
     ESP_LOGW(TAG, "Device unpaired - broadcast + scan cycle");
+    status_set_busy(true);  /* Red LED while unpaired */
 
     comms_open();
 
@@ -53,8 +54,8 @@ static void app_main_unpaired(state_t *state) {
         if (messages[i].has_hello && messages[i].hello.source == COMMS_SOURCE_HUB) {
             ESP_LOGI(TAG, "Hub found: %s! Marking as paired.", messages[i].device_id);
             state_set_pairing(state, PAIRING_STATE_PAIRED);
-            status_set_busy(false);
-            esp_restart();
+            status_it_worked();
+            pm_restart();
             /* Never reached */
         }
     }
@@ -90,6 +91,7 @@ void app_main(void)
     /* Initialize NVS (required for BLE and state) */
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_LOGW(TAG, "NVS init failed (%s), erasing", esp_err_to_name(ret));
         nvs_flash_erase();
         nvs_flash_init();
     }
