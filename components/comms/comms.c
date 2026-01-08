@@ -28,8 +28,8 @@ static const char *TAG = "comms";
 /* Magic number to identify our messages */
 #define COMMS_MAGIC 0x48, 0x41  /* "HA" */
 
-/* Use all advertising channels for better reception */
-#define COMMS_ADV_CHANNEL_MAP   0x07  /* Channels 37, 38, 39 */
+/* Use single advertising channel to reduce power and simplify scanning */
+#define COMMS_ADV_CHANNEL_MAP   0x04  /* Channel 39 only */
 
 /* Internal scan buffer size */
 #define COMMS_SCAN_BUFFER_SIZE  16
