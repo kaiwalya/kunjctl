@@ -32,6 +32,13 @@ typedef struct {
     bool relay_state;
 } comms_report_data_t;
 
+/* Relay command (for sending and receiving) */
+typedef struct {
+    char device_id[32];
+    uint32_t relay_id;
+    bool state;
+} comms_relay_cmd_t;
+
 typedef struct {
     char device_id[32];
     uint32_t message_id;
@@ -41,6 +48,9 @@ typedef struct {
 
     bool has_report;
     comms_report_data_t report;
+
+    bool has_relay_cmd;
+    comms_relay_cmd_t relay_cmd;
 } comms_message_t;
 
 /*── Lifecycle ──*/
@@ -54,6 +64,7 @@ void comms_close(void);
 
 esp_err_t comms_send_hello_for(uint32_t duration_ms);
 esp_err_t comms_send_report_for(const comms_report_t *report, uint32_t duration_ms);
+esp_err_t comms_send_relay_cmd_for(const comms_relay_cmd_t *cmd, uint32_t duration_ms);
 
 /*── Receiving ──*/
 

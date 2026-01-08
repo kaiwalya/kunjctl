@@ -17,7 +17,8 @@ static const char *TAG = "node";
 #define PM_STATS_INTERVAL_MS        60000
 #define UNPAIRED_ADV_DURATION_MS    2000   /* Broadcast Hello for 2 seconds */
 #define UNPAIRED_SCAN_DURATION_MS   8000   /* Listen for hub Hello for 8 seconds */
-#define REPORT_DURATION_MS          500   /* Broadcast report for 500ms */
+#define REPORT_DURATION_MS          500    /* Broadcast report for 500ms */
+#define COMMAND_SCAN_DURATION_MS    3000   /* Listen for commands for 3 seconds */
 
 /*── Factory Reset ──*/
 
@@ -159,6 +160,20 @@ void app_main(void)
             .relay_state = relay_get_state(relay)
         };
         comms_send_report_for(&report, REPORT_DURATION_MS);
+
+        /* Scan for commands from hub */
+        comms_message_t msgs[4];
+        int count = comms_scan_for(COMMAND_SCAN_DURATION_MS, msgs, 4);
+        for (int i = 0; i < count; i++) {
+            if (msgs[i].has_relay_cmd) {
+                comms_relay_cmd_t *cmd = &msgs[i].relay_cmd;
+                /* Check if command is for this device */
+                if (strcmp(cmd->device_id, device_name) == 0) {
+                    ESP_LOGI(TAG, "Relay command received: %s", cmd->state ? "ON" : "OFF");
+                    relay_set(relay, cmd->state);
+                }
+            }
+        }
 
         comms_close();
 

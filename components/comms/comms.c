@@ -117,6 +117,16 @@ static void convert_message(const Message *msg, const char *device_id, comms_mes
             }
             break;
 
+        case MessageType_MESSAGE_TYPE_RELAY_COMMAND:
+            if (msg->which_payload == Message_relay_cmd_tag) {
+                const RelayCommand *cmd = &msg->payload.relay_cmd;
+                out->has_relay_cmd = true;
+                strncpy(out->relay_cmd.device_id, cmd->device_id, sizeof(out->relay_cmd.device_id) - 1);
+                out->relay_cmd.relay_id = cmd->relay_id;
+                out->relay_cmd.state = cmd->state;
+            }
+            break;
+
         default:
             break;
     }
@@ -215,6 +225,8 @@ static bool parse_message_from_mfg_data(const uint8_t *data, uint8_t len) {
         device_id = msg.payload.hello.device_id;
     } else if (msg.which_payload == Message_report_tag) {
         device_id = msg.payload.report.device_id;
+    } else if (msg.which_payload == Message_relay_cmd_tag) {
+        device_id = msg.payload.relay_cmd.device_id;
     }
 
     if (device_id) {
@@ -480,6 +492,23 @@ esp_err_t comms_send_report_for(const comms_report_t *report, uint32_t duration_
         msg.payload.report.has_relay_state = true;
         msg.payload.report.relay_state = *report->relay_state;
     }
+
+    esp_err_t ret = send_message(&msg);
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    return advertise_for(duration_ms);
+}
+
+esp_err_t comms_send_relay_cmd_for(const comms_relay_cmd_t *cmd, uint32_t duration_ms) {
+    Message msg = Message_init_zero;
+    msg.message_id = generate_message_id();
+    msg.type = MessageType_MESSAGE_TYPE_RELAY_COMMAND;
+    msg.which_payload = Message_relay_cmd_tag;
+    strncpy(msg.payload.relay_cmd.device_id, cmd->device_id, sizeof(msg.payload.relay_cmd.device_id) - 1);
+    msg.payload.relay_cmd.relay_id = cmd->relay_id;
+    msg.payload.relay_cmd.state = cmd->state;
 
     esp_err_t ret = send_message(&msg);
     if (ret != ESP_OK) {

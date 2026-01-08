@@ -8,6 +8,7 @@ enum SourceType {
 enum MessageType {
   MESSAGE_TYPE_HELLO = 0;
   MESSAGE_TYPE_REPORT = 1;
+  MESSAGE_TYPE_RELAY_COMMAND = 2;
 }
 
 message Hello {
@@ -22,11 +23,18 @@ message SensorReport {
   optional bool relay_state = 4;
 }
 
+message RelayCommand {
+  string device_id = 1;
+  uint32 relay_id = 2;
+  bool state = 3;
+}
+
 message Message {
   uint32 message_id = 1;
   MessageType type = 2;
   oneof payload {
     Hello hello = 3;
     SensorReport report = 4;
+    RelayCommand relay_cmd = 5;
   }
 }
