@@ -5,7 +5,28 @@ enum SourceType {
   SOURCE_TYPE_HUB = 1;
 }
 
+enum MessageType {
+  MESSAGE_TYPE_HELLO = 0;
+  MESSAGE_TYPE_REPORT = 1;
+}
+
 message Hello {
   SourceType source_type = 1;
   string device_id = 2;
+}
+
+message SensorReport {
+  string device_id = 1;
+  optional float temperature_c = 2;
+  optional float humidity_pct = 3;
+  optional bool relay_state = 4;
+}
+
+message Message {
+  uint32 message_id = 1;
+  MessageType type = 2;
+  oneof payload {
+    Hello hello = 3;
+    SensorReport report = 4;
+  }
 }

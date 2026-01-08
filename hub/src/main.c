@@ -10,68 +10,30 @@
 static const char *TAG = "hub";
 
 #define PM_STATS_INTERVAL_MS        60000
-#define PAIRING_DELAY_MS            2000
-#define PAIRING_BROADCAST_MS        2000
-#define PAIRING_TASK_STACK_SIZE     4096
-#define PAIRING_TASK_NAME_PREFIX    "hi-"
+#define SCAN_INTERVAL_MS            100
+#define HELLO_RESPONSE_PRE_WAIT_MS  1000 // make sure node is out of broadcast and in scan mode
+#define HELLO_RESPONSE_MS           2000
+#define MAX_MESSAGES                16
 
-/* Forward declaration */
-static void on_hello_received(const comms_hello_t *hello);
+/*── Message Collection ──*/
 
-/*── Pairing Response Task ──*/
+static comms_message_t g_messages[MAX_MESSAGES];
+static int g_message_count = 0;
 
-static void pairing_task(void *arg) {
-    char *device_id = (char *)arg;
+static void on_message(const comms_message_t *msg) {
+    /* Dedupe by message_id */
+    for (int i = 0; i < g_message_count; i++) {
+        if (g_messages[i].message_id == msg->message_id) {
+            return;
+        }
+    }
 
-    ESP_LOGI(TAG, "Pairing task started for %s", device_id);
-
-    /* Wait before responding */
-    vTaskDelay(pdMS_TO_TICKS(PAIRING_DELAY_MS));
-
-    /* Stop scanning, broadcast Hello, resume scanning */
-    comms_stop_scanning();
-    comms_send_hello_for(PAIRING_BROADCAST_MS);
-    comms_start_scanning(on_hello_received);
-
-    ESP_LOGI(TAG, "Pairing response sent for %s", device_id);
-
-    free(device_id);
-    vTaskDelete(NULL);
-}
-
-static void on_hello_received(const comms_hello_t *hello) {
-    if (hello->source != COMMS_SOURCE_NODE) {
+    if (g_message_count >= MAX_MESSAGES) {
+        ESP_LOGW(TAG, "Message buffer full, dropping from %s", msg->device_id);
         return;
     }
 
-    ESP_LOGI(TAG, "Received Hello from node: %s", hello->device_id);
-
-    /* Build task name: "hi-<device_id>" (truncated to fit) */
-    char task_name[configMAX_TASK_NAME_LEN];
-    int max_id_len = configMAX_TASK_NAME_LEN - sizeof(PAIRING_TASK_NAME_PREFIX);
-    snprintf(task_name, sizeof(task_name), "%s%.*s",
-             PAIRING_TASK_NAME_PREFIX, max_id_len, hello->device_id);
-
-    /* Check if pairing task already exists */
-    if (xTaskGetHandle(task_name) != NULL) {
-        ESP_LOGD(TAG, "Pairing task already active for %s", hello->device_id);
-        return;
-    }
-
-    /* Create pairing task (pass copy of device_id) */
-    char *device_id_copy = strdup(hello->device_id);
-    if (!device_id_copy) {
-        ESP_LOGE(TAG, "Failed to allocate device_id");
-        return;
-    }
-
-    BaseType_t ret = xTaskCreate(pairing_task, task_name,
-                                  PAIRING_TASK_STACK_SIZE, device_id_copy,
-                                  tskIDLE_PRIORITY + 1, NULL);
-    if (ret != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create pairing task");
-        free(device_id_copy);
-    }
+    g_messages[g_message_count++] = *msg;
 }
 
 void app_main(void)
@@ -101,21 +63,53 @@ void app_main(void)
         return;
     }
 
-    /* Open radio and start scanning */
     if (comms_open() != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open comms");
         return;
     }
 
-    if (comms_start_scanning(on_hello_received) != ESP_OK) {
+    /* Start scanning */
+    if (comms_start_scanning(on_message) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start scanning");
         return;
     }
 
-    ESP_LOGI(TAG, "Hub ready, scanning for nodes...");
+    ESP_LOGI(TAG, "Hub ready, scanning...");
 
-    /* Main loop (hub stays awake, scanning continuously) */
+    /* Main loop */
     for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        if (g_message_count == 0) {
+            vTaskDelay(pdMS_TO_TICKS(SCAN_INTERVAL_MS));
+            continue;
+        }
+
+        /* Process collected messages */
+        for (int i = 0; i < g_message_count; i++) {
+            comms_message_t *msg = &g_messages[i];
+
+            if (msg->has_hello && msg->hello.source == COMMS_SOURCE_NODE) {
+                ESP_LOGI(TAG, "Hello from node: %s, responding...", msg->device_id);
+                comms_stop_scanning();
+                vTaskDelay(pdMS_TO_TICKS(HELLO_RESPONSE_PRE_WAIT_MS));
+                comms_send_hello_for(HELLO_RESPONSE_MS);
+                comms_start_scanning(on_message);
+            }
+
+            if (msg->has_report) {
+                ESP_LOGI(TAG, "Report from %s:", msg->device_id);
+                if (msg->report.has_temperature) {
+                    ESP_LOGI(TAG, "  Temperature: %.1f C", msg->report.temperature_c);
+                }
+                if (msg->report.has_humidity) {
+                    ESP_LOGI(TAG, "  Humidity: %.1f %%", msg->report.humidity_pct);
+                }
+                if (msg->report.has_relay) {
+                    ESP_LOGI(TAG, "  Relay: %s", msg->report.relay_state ? "ON" : "OFF");
+                }
+            }
+        }
+
+        /* Clear buffer */
+        g_message_count = 0;
     }
 }

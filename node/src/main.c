@@ -16,6 +16,7 @@ static const char *TAG = "node";
 #define PM_STATS_INTERVAL_MS        60000
 #define UNPAIRED_ADV_DURATION_MS    2000   /* Broadcast Hello for 2 seconds */
 #define UNPAIRED_SCAN_DURATION_MS   8000   /* Listen for hub Hello for 8 seconds */
+#define REPORT_DURATION_MS          500   /* Broadcast report for 2 seconds */
 
 /*── Factory Reset ──*/
 
@@ -29,41 +30,33 @@ static void on_factory_reset_button(gpio_num_t gpio) {
 
 /*── Unpaired Mode ──*/
 
-static volatile bool g_hub_seen = false;
-
-static void on_hello_received(const comms_hello_t *hello) {
-    if (hello->source == COMMS_SOURCE_HUB) {
-        ESP_LOGI(TAG, "Hub discovered: %s", hello->device_id);
-        g_hub_seen = true;
-    }
-}
-
 static void app_main_unpaired(state_t *state) __attribute__((noreturn));
 
 static void app_main_unpaired(state_t *state) {
     ESP_LOGW(TAG, "Device unpaired - broadcast + scan cycle");
 
-    g_hub_seen = false;
-
-    /* Phase 1: Broadcast Hello for 2 seconds */
-    ESP_LOGI(TAG, "Broadcasting Hello...");
     comms_open();
+
+    /* Phase 1: Broadcast Hello */
+    ESP_LOGI(TAG, "Broadcasting Hello...");
     comms_send_hello_for(UNPAIRED_ADV_DURATION_MS);
 
-    /* Phase 2: Scan for hub Hello for 8 seconds */
+    /* Phase 2: Scan for hub Hello */
     ESP_LOGI(TAG, "Scanning for hub...");
-    comms_start_scanning(on_hello_received);
-    vTaskDelay(pdMS_TO_TICKS(UNPAIRED_SCAN_DURATION_MS));
-    comms_stop_scanning();
+    comms_message_t messages[4];
+    int count = comms_scan_for(UNPAIRED_SCAN_DURATION_MS, messages, 4);
+
     comms_close();
 
     /* Check if we discovered a hub */
-    if (g_hub_seen) {
-        ESP_LOGI(TAG, "Hub found! Marking as paired.");
-        state_set_pairing(state, PAIRING_STATE_PAIRED);
-        status_set_busy(false);
-        esp_restart();
-        /* Never reached */
+    for (int i = 0; i < count; i++) {
+        if (messages[i].has_hello && messages[i].hello.source == COMMS_SOURCE_HUB) {
+            ESP_LOGI(TAG, "Hub found: %s! Marking as paired.", messages[i].device_id);
+            state_set_pairing(state, PAIRING_STATE_PAIRED);
+            status_set_busy(false);
+            esp_restart();
+            /* Never reached */
+        }
     }
 
     ESP_LOGI(TAG, "No hub found, entering deep sleep");
@@ -149,9 +142,13 @@ void app_main(void)
 
         /* Communicate */
         comms_open();
-        comms_send_hello();  /* Blocks until advertising complete */
-        // TODO: comms_send_sensor_data(temp, hum);
-        // TODO: comms_wait_for_input();
+
+        comms_report_t report = {
+            .temperature_c = temp,
+            .humidity_pct = hum
+        };
+        comms_send_report_for(&report, REPORT_DURATION_MS);
+
         comms_close();
 
         status_set_busy(false);

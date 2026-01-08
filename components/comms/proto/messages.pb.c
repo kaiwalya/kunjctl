@@ -9,6 +9,14 @@
 PB_BIND(Hello, Hello, AUTO)
 
 
+PB_BIND(SensorReport, SensorReport, AUTO)
+
+
+PB_BIND(Message, Message, AUTO)
+
+
+
+
 
 
 

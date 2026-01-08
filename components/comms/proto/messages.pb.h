@@ -15,11 +15,36 @@ typedef enum _SourceType {
     SourceType_SOURCE_TYPE_HUB = 1
 } SourceType;
 
+typedef enum _MessageType {
+    MessageType_MESSAGE_TYPE_HELLO = 0,
+    MessageType_MESSAGE_TYPE_REPORT = 1
+} MessageType;
+
 /* Struct definitions */
 typedef struct _Hello {
     SourceType source_type;
     char device_id[32];
 } Hello;
+
+typedef struct _SensorReport {
+    char device_id[32];
+    bool has_temperature_c;
+    float temperature_c;
+    bool has_humidity_pct;
+    float humidity_pct;
+    bool has_relay_state;
+    bool relay_state;
+} SensorReport;
+
+typedef struct _Message {
+    uint32_t message_id;
+    MessageType type;
+    pb_size_t which_payload;
+    union {
+        Hello hello;
+        SensorReport report;
+    } payload;
+} Message;
 
 
 #ifdef __cplusplus
@@ -31,16 +56,35 @@ extern "C" {
 #define _SourceType_MAX SourceType_SOURCE_TYPE_HUB
 #define _SourceType_ARRAYSIZE ((SourceType)(SourceType_SOURCE_TYPE_HUB+1))
 
+#define _MessageType_MIN MessageType_MESSAGE_TYPE_HELLO
+#define _MessageType_MAX MessageType_MESSAGE_TYPE_REPORT
+#define _MessageType_ARRAYSIZE ((MessageType)(MessageType_MESSAGE_TYPE_REPORT+1))
+
 #define Hello_source_type_ENUMTYPE SourceType
+
+
+#define Message_type_ENUMTYPE MessageType
 
 
 /* Initializer values for message structs */
 #define Hello_init_default                       {_SourceType_MIN, ""}
+#define SensorReport_init_default                {"", false, 0, false, 0, false, 0}
+#define Message_init_default                     {0, _MessageType_MIN, 0, {Hello_init_default}}
 #define Hello_init_zero                          {_SourceType_MIN, ""}
+#define SensorReport_init_zero                   {"", false, 0, false, 0, false, 0}
+#define Message_init_zero                        {0, _MessageType_MIN, 0, {Hello_init_zero}}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define Hello_source_type_tag                    1
 #define Hello_device_id_tag                      2
+#define SensorReport_device_id_tag               1
+#define SensorReport_temperature_c_tag           2
+#define SensorReport_humidity_pct_tag            3
+#define SensorReport_relay_state_tag             4
+#define Message_message_id_tag                   1
+#define Message_type_tag                         2
+#define Message_hello_tag                        3
+#define Message_report_tag                       4
 
 /* Struct field encoding specification for nanopb */
 #define Hello_FIELDLIST(X, a) \
@@ -49,14 +93,38 @@ X(a, STATIC,   SINGULAR, STRING,   device_id,         2)
 #define Hello_CALLBACK NULL
 #define Hello_DEFAULT NULL
 
+#define SensorReport_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, STRING,   device_id,         1) \
+X(a, STATIC,   OPTIONAL, FLOAT,    temperature_c,     2) \
+X(a, STATIC,   OPTIONAL, FLOAT,    humidity_pct,      3) \
+X(a, STATIC,   OPTIONAL, BOOL,     relay_state,       4)
+#define SensorReport_CALLBACK NULL
+#define SensorReport_DEFAULT NULL
+
+#define Message_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   message_id,        1) \
+X(a, STATIC,   SINGULAR, UENUM,    type,              2) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (payload,hello,payload.hello),   3) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (payload,report,payload.report),   4)
+#define Message_CALLBACK NULL
+#define Message_DEFAULT NULL
+#define Message_payload_hello_MSGTYPE Hello
+#define Message_payload_report_MSGTYPE SensorReport
+
 extern const pb_msgdesc_t Hello_msg;
+extern const pb_msgdesc_t SensorReport_msg;
+extern const pb_msgdesc_t Message_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
 #define Hello_fields &Hello_msg
+#define SensorReport_fields &SensorReport_msg
+#define Message_fields &Message_msg
 
 /* Maximum encoded size of messages (where known) */
 #define Hello_size                               35
-#define MESSAGES_PB_H_MAX_SIZE                   Hello_size
+#define MESSAGES_PB_H_MAX_SIZE                   Message_size
+#define Message_size                             55
+#define SensorReport_size                        45
 
 #ifdef __cplusplus
 } /* extern "C" */
