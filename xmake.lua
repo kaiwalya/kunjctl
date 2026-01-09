@@ -9,7 +9,7 @@ set_version("0.1.0")
 -- Build directory mirrors: build/<subproject>/<chip>/<name>/
 ----------------------------------------------------------------------
 
-local subprojects = {"node", "hub", "thread-end-device", "thread-router"}
+local subprojects = {"thread-end-device", "thread-router"}
 local chips = {"esp32h2", "esp32s3", "esp32c6"}
 
 local setups = {}
@@ -199,7 +199,6 @@ task("codegen")
     }
     on_run(function ()
         local proto_dirs = {
-            "components/comms/proto",
             "components/thread_comms/proto",
         }
         for _, proto_dir in ipairs(proto_dirs) do

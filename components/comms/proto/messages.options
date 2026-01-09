@@ -1,4 +1,0 @@
-# Nanopb options - constrain sizes for embedded use
-Hello.device_id         max_size:32
-SensorReport.device_id  max_size:32
-RelayCommand.device_id  max_size:32
