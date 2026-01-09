@@ -76,11 +76,7 @@ for setup_name, setup in pairs(setups) do
             -- Build path mirrors setups: build/<subproject>/<chip>/<name>/
             local build_dir = path.join("build", s.subproject, s.chip, s.name)
 
-            -- Chain Thread config for thread-* subprojects
             local sdkconfig_defaults = "sdkconfig.defaults;" .. s.conf
-            if s.subproject:find("^thread") then
-                sdkconfig_defaults = "sdkconfig.defaults;sdkconfig.defaults.thread;" .. s.conf
-            end
 
             -- Auto set-target if CMakeCache is missing
             local cmake_cache = path.join(build_dir, "CMakeCache.txt")
