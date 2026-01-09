@@ -13,8 +13,6 @@ static const char *TAG = "pm";
 static uint32_t stats_interval_ms = 10000;
 static pm_wake_cb_t g_wake_cb = NULL;
 static QueueHandle_t g_wake_queue = NULL;
-static esp_pm_lock_handle_t g_sleep_lock = NULL;
-static bool g_sleep_blocked = false;
 
 /* Store wake GPIO config for deep sleep */
 static pm_wake_gpio_t g_wake_gpios[PM_MAX_WAKE_GPIOS];
@@ -115,27 +113,19 @@ void pm_init(const pm_config_t *config) {
         esp_sleep_enable_gpio_wakeup();
     }
 
-    /* Configure power management - always enable light sleep capability */
+    /* Configure power management */
     esp_pm_config_t pm_cfg = {
         .max_freq_mhz = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ,
         .min_freq_mhz = CONFIG_XTAL_FREQ,
-        .light_sleep_enable = true
+        .light_sleep_enable = config->light_sleep_enable
     };
     esp_err_t err = esp_pm_configure(&pm_cfg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to configure PM: %s", esp_err_to_name(err));
     }
 
-    /* Create lock to control when sleep is allowed - blocked by default */
-    err = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "app_sleep", &g_sleep_lock);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to create PM lock: %s", esp_err_to_name(err));
-    } else {
-        esp_pm_lock_acquire(g_sleep_lock);
-        g_sleep_blocked = true;
-    }
-
-    ESP_LOGI(TAG, "Power management configured (light_sleep blocked by default)");
+    ESP_LOGI(TAG, "Power management configured (light_sleep=%s)",
+             config->light_sleep_enable ? "enabled" : "disabled");
 
     /* Start stats logging task */
     xTaskCreate(pm_stats_task, "pm_stats", 4096, NULL, 5, NULL);
@@ -171,20 +161,6 @@ void pm_log_stats(void) {
     ESP_LOGI(TAG, "Name            State   Prio    Stack   Num");
     vTaskList(buf);
     log_multiline(buf);
-}
-
-void pm_light_sleep_set(bool enable) {
-    if (g_sleep_lock == NULL) {
-        return;
-    }
-
-    if (enable && g_sleep_blocked) {
-        esp_pm_lock_release(g_sleep_lock);
-        g_sleep_blocked = false;
-    } else if (!enable && !g_sleep_blocked) {
-        esp_pm_lock_acquire(g_sleep_lock);
-        g_sleep_blocked = true;
-    }
 }
 
 void pm_deep_sleep(void) {

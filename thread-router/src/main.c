@@ -51,6 +51,7 @@ void app_main(void)
     /* Power management */
     pm_config_t pm_cfg = {
         .stats_interval_ms = PM_STATS_INTERVAL_MS,
+        .light_sleep_enable = false,  /* Router must stay awake to forward messages */
     };
     pm_init(&pm_cfg);
 

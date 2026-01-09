@@ -25,13 +25,11 @@ typedef struct {
     uint8_t num_wake_gpios;
     uint32_t stats_interval_ms;
     pm_wake_cb_t wake_cb;  /* Optional callback for wake GPIO events */
+    bool light_sleep_enable;
 } pm_config_t;
 
 void pm_init(const pm_config_t *config);
 void pm_log_stats(void);
-
-/* Enable or disable light sleep at runtime */
-void pm_light_sleep_set(bool enable);
 
 /* Enter deep sleep using configured wake GPIOs */
 void pm_deep_sleep(void) __attribute__((noreturn));
