@@ -285,10 +285,13 @@ static esp_err_t send_message(const Message *msg)
         return ESP_FAIL;
     }
 
+    esp_openthread_lock_acquire(portMAX_DELAY);
+
     /* Create OpenThread message */
     otMessage *ot_msg = otUdpNewMessage(instance, NULL);
     if (ot_msg == NULL) {
         ESP_LOGE(TAG, "Failed to allocate OT message");
+        esp_openthread_lock_release();
         return ESP_ERR_NO_MEM;
     }
 
@@ -296,6 +299,7 @@ static esp_err_t send_message(const Message *msg)
     if (err != OT_ERROR_NONE) {
         ESP_LOGE(TAG, "Failed to append message data: %d", err);
         otMessageFree(ot_msg);
+        esp_openthread_lock_release();
         return ESP_FAIL;
     }
 
@@ -306,7 +310,6 @@ static esp_err_t send_message(const Message *msg)
     memcpy(&info.mPeerAddr, multicast_addr, sizeof(otIp6Address));
     info.mPeerPort = THREAD_COMMS_PORT;
 
-    esp_openthread_lock_acquire(portMAX_DELAY);
     err = otUdpSend(instance, &g_socket, ot_msg, &info);
     esp_openthread_lock_release();
 
