@@ -13,8 +13,9 @@ message RelayCommand {
 }
 
 message Message {
+    uint32 msg_id = 1;  // Upper 16 bits: timestamp, lower 16 bits: random
     oneof payload {
-        Report report = 1;
-        RelayCommand relay_cmd = 2;
+        Report report = 2;
+        RelayCommand relay_cmd = 3;
     }
 }

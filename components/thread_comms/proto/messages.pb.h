@@ -26,6 +26,7 @@ typedef struct _RelayCommand {
 } RelayCommand;
 
 typedef struct _Message {
+    uint32_t msg_id; /* Upper 16 bits: timestamp, lower 16 bits: random */
     pb_size_t which_payload;
     union {
         Report report;
@@ -41,10 +42,10 @@ extern "C" {
 /* Initializer values for message structs */
 #define Report_init_default                      {"", false, 0, false, 0, false, 0}
 #define RelayCommand_init_default                {"", 0}
-#define Message_init_default                     {0, {Report_init_default}}
+#define Message_init_default                     {0, 0, {Report_init_default}}
 #define Report_init_zero                         {"", false, 0, false, 0, false, 0}
 #define RelayCommand_init_zero                   {"", 0}
-#define Message_init_zero                        {0, {Report_init_zero}}
+#define Message_init_zero                        {0, 0, {Report_init_zero}}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define Report_device_id_tag                     1
@@ -53,8 +54,9 @@ extern "C" {
 #define Report_relay_state_tag                   4
 #define RelayCommand_device_id_tag               1
 #define RelayCommand_relay_state_tag             2
-#define Message_report_tag                       1
-#define Message_relay_cmd_tag                    2
+#define Message_msg_id_tag                       1
+#define Message_report_tag                       2
+#define Message_relay_cmd_tag                    3
 
 /* Struct field encoding specification for nanopb */
 #define Report_FIELDLIST(X, a) \
@@ -72,8 +74,9 @@ X(a, STATIC,   SINGULAR, BOOL,     relay_state,       2)
 #define RelayCommand_DEFAULT NULL
 
 #define Message_FIELDLIST(X, a) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (payload,report,payload.report),   1) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (payload,relay_cmd,payload.relay_cmd),   2)
+X(a, STATIC,   SINGULAR, UINT32,   msg_id,            1) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (payload,report,payload.report),   2) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (payload,relay_cmd,payload.relay_cmd),   3)
 #define Message_CALLBACK NULL
 #define Message_DEFAULT NULL
 #define Message_payload_report_MSGTYPE Report
@@ -90,7 +93,7 @@ extern const pb_msgdesc_t Message_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define MESSAGES_PB_H_MAX_SIZE                   Message_size
-#define Message_size                             47
+#define Message_size                             53
 #define RelayCommand_size                        35
 #define Report_size                              45
 

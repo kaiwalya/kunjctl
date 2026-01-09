@@ -6,6 +6,8 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_random.h"
+#include "esp_timer.h"
 #include "esp_openthread.h"
 #include "esp_openthread_lock.h"
 #include "esp_openthread_netif_glue.h"
@@ -41,6 +43,13 @@ static thread_comms_callback_t g_callback = NULL;
 static void handle_receive(void *context, otMessage *message, const otMessageInfo *info);
 
 /*── Internal ──*/
+
+static uint32_t generate_msg_id(void)
+{
+    uint32_t time_part = (uint32_t)(esp_timer_get_time() / 1000000) & 0xFFFF;  /* Seconds, lower 16 bits */
+    uint32_t rand_part = esp_random() & 0xFFFF;
+    return (time_part << 16) | rand_part;
+}
 
 static const char *role_to_string(otDeviceRole role)
 {
@@ -239,12 +248,15 @@ static void handle_receive(void *context, otMessage *message, const otMessageInf
         return;
     }
 
+    ESP_LOGI(TAG, "Recv msg_id=%08lx", (unsigned long)msg.msg_id);
+
     if (g_callback == NULL) {
         return;
     }
 
     thread_comms_message_t out;
     memset(&out, 0, sizeof(out));
+    out.msg_id = msg.msg_id;
 
     if (msg.which_payload == Message_report_tag) {
         out.type = THREAD_COMMS_MSG_REPORT;
@@ -318,6 +330,7 @@ static esp_err_t send_message(const Message *msg)
         return ESP_FAIL;
     }
 
+    ESP_LOGI(TAG, "Sent msg_id=%08lx", (unsigned long)msg->msg_id);
     return ESP_OK;
 }
 
@@ -416,6 +429,7 @@ esp_err_t thread_comms_send_report(const thread_comms_report_t *report)
     }
 
     Message msg = Message_init_zero;
+    msg.msg_id = generate_msg_id();
     msg.which_payload = Message_report_tag;
     strncpy(msg.payload.report.device_id, report->device_id, sizeof(msg.payload.report.device_id) - 1);
 
@@ -442,6 +456,7 @@ esp_err_t thread_comms_send_relay_cmd(const thread_comms_relay_cmd_t *cmd)
     }
 
     Message msg = Message_init_zero;
+    msg.msg_id = generate_msg_id();
     msg.which_payload = Message_relay_cmd_tag;
     strncpy(msg.payload.relay_cmd.device_id, cmd->device_id, sizeof(msg.payload.relay_cmd.device_id) - 1);
     msg.payload.relay_cmd.relay_state = cmd->relay_state;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 #include "esp_err.h"
 
 #ifdef __cplusplus
@@ -35,6 +36,7 @@ typedef enum {
 } thread_comms_msg_type_t;
 
 typedef struct {
+    uint32_t msg_id;  /* Upper 16 bits: timestamp, lower 16 bits: random */
     thread_comms_msg_type_t type;
     union {
         thread_comms_report_t report;
