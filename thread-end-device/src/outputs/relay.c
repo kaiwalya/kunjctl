@@ -14,7 +14,7 @@ struct relay_t {
     bool has_state;
 };
 
-relay_t *relay_init(void) {
+relay_t *relay_init(bool initial_state) {
     relay_t *r = calloc(1, sizeof(relay_t));
     if (!r) return NULL;
 
@@ -22,13 +22,15 @@ relay_t *relay_init(void) {
 
 #if CONFIG_RELAY_ENABLED
     r->gpio = CONFIG_RELAY_GPIO;
-    gpio_reset_pin(r->gpio);
+    /* Configure GPIO and set initial state */
+    gpio_hold_dis(r->gpio);
     gpio_set_direction(r->gpio, GPIO_MODE_OUTPUT);
-    gpio_set_level(r->gpio, 0);
-    gpio_hold_en(r->gpio);  /* Maintain state during sleep */
-    r->state = false;
+    gpio_set_level(r->gpio, initial_state ? 1 : 0);
+    gpio_hold_en(r->gpio);
+
+    r->state = initial_state;
     r->has_state = true;
-    ESP_LOGI(TAG, "Relay on GPIO %d", r->gpio);
+    ESP_LOGI(TAG, "Relay on GPIO %d (initial state: %s)", r->gpio, initial_state ? "ON" : "OFF");
 #endif
 
     return r;
@@ -44,6 +46,7 @@ void relay_set(relay_t *relay, bool on) {
     gpio_hold_dis(relay->gpio);
     gpio_set_level(relay->gpio, on ? 1 : 0);
     gpio_hold_en(relay->gpio);
+    ESP_LOGI(TAG, "Relay set to %s", on ? "ON" : "OFF");
 }
 
 const bool *relay_get_state(relay_t *relay) {

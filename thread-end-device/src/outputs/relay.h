@@ -4,7 +4,7 @@
 
 typedef struct relay_t relay_t;
 
-relay_t *relay_init(void);
+relay_t *relay_init(bool initial_state);
 void relay_deinit(relay_t *relay);
 
 void relay_set(relay_t *relay, bool on);

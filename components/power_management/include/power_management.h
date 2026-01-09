@@ -34,5 +34,8 @@ void pm_log_stats(void);
 /* Enter deep sleep using configured wake GPIOs */
 void pm_deep_sleep(void) __attribute__((noreturn));
 
+/* Enter deep sleep for specified duration (also wakes on configured GPIOs) */
+void pm_deep_sleep_for(uint32_t sleep_ms) __attribute__((noreturn));
+
 /* Restart the device */
 void pm_restart(void) __attribute__((noreturn));

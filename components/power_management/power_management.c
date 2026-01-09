@@ -163,8 +163,7 @@ void pm_log_stats(void) {
     log_multiline(buf);
 }
 
-void pm_deep_sleep(void) {
-    /* Configure GPIO wake sources for deep sleep using EXT1 */
+static void configure_gpio_wake_for_deep_sleep(void) {
     if (g_num_wake_gpios > 0) {
         uint64_t gpio_mask = 0;
         esp_sleep_ext1_wakeup_mode_t mode = ESP_EXT1_WAKEUP_ANY_LOW;
@@ -187,8 +186,19 @@ void pm_deep_sleep(void) {
                      gpio_mask, mode == ESP_EXT1_WAKEUP_ANY_LOW ? "any_low" : "any_high");
         }
     }
+}
 
+void pm_deep_sleep(void) {
+    configure_gpio_wake_for_deep_sleep();
     ESP_LOGI(TAG, "Entering deep sleep");
+    esp_deep_sleep_start();
+    /* Never reached */
+}
+
+void pm_deep_sleep_for(uint32_t sleep_ms) {
+    configure_gpio_wake_for_deep_sleep();
+    esp_sleep_enable_timer_wakeup((uint64_t)sleep_ms * 1000);
+    ESP_LOGI(TAG, "Entering deep sleep for %lu ms", (unsigned long)sleep_ms);
     esp_deep_sleep_start();
     /* Never reached */
 }

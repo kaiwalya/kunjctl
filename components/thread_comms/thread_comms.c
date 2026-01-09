@@ -7,7 +7,6 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_random.h"
-#include "esp_timer.h"
 #include "esp_openthread.h"
 #include "esp_openthread_lock.h"
 #include "esp_openthread_netif_glue.h"
@@ -155,10 +154,10 @@ static void configure_sed_mode(otInstance *instance)
     mode.mNetworkData = false;   /* Minimal network data */
     otThreadSetLinkMode(instance, mode);
 
-    /* Poll period 0 = manual polling only via thread_comms_poll() */
-    otLinkSetPollPeriod(instance, 0);
+    /* Let OpenThread handle polling automatically */
+    otLinkSetPollPeriod(instance, 2000);
 
-    ESP_LOGI(TAG, "Configured as Sleepy End Device (manual poll)");
+    ESP_LOGI(TAG, "Configured as Sleepy End Device (poll period: 2000ms)");
 }
 
 static esp_err_t wait_for_role(otDeviceRole min_role, const char *wait_msg)
@@ -323,6 +322,7 @@ static esp_err_t send_message(const Message *msg)
     info.mPeerPort = THREAD_COMMS_PORT;
 
     err = otUdpSend(instance, &g_socket, ot_msg, &info);
+
     esp_openthread_lock_release();
 
     if (err != OT_ERROR_NONE) {
