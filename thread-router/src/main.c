@@ -75,6 +75,17 @@ static void on_thread_message(const thread_comms_message_t *msg)
                  r->has_temperature ? r->temperature : 0,
                  r->has_humidity ? r->humidity : 0,
                  r->has_relay_state ? (r->relay_state ? "ON" : "OFF") : "N/A");
+
+        /* If report includes relay state, send command to invert it (demo) */
+        if (r->has_relay_state) {
+            thread_comms_relay_cmd_t cmd = {0};
+            strncpy(cmd.device_id, r->device_id, sizeof(cmd.device_id) - 1);
+            cmd.relay_state = !r->relay_state;
+
+            ESP_LOGI(TAG, "Sending relay command to '%s': %s",
+                     cmd.device_id, cmd.relay_state ? "ON" : "OFF");
+            thread_comms_send_relay_cmd(&cmd);
+        }
     } else if (msg->type == THREAD_COMMS_MSG_RELAY_CMD) {
         /* Ignore relay commands (we send them, not receive) */
     }
