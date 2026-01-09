@@ -198,38 +198,41 @@ void app_main(void)
 
     xTaskCreate(ot_mainloop, "ot_mainloop", 4096, NULL, 5, NULL);
 
-    /* Wait for network join or timeout */
-#if CONFIG_JOIN_TIMEOUT_MS > 0
-    ESP_LOGI(TAG, "Waiting up to %d ms to join network...", CONFIG_JOIN_TIMEOUT_MS);
-    bool joined = false;
-    for (int elapsed = 0; elapsed < CONFIG_JOIN_TIMEOUT_MS; elapsed += 500) {
+    /* Wait for network join */
+    ESP_LOGI(TAG, "Waiting to join Thread network...");
+    while (1) {
         vTaskDelay(pdMS_TO_TICKS(500));
         esp_openthread_lock_acquire(portMAX_DELAY);
         otDeviceRole role = otThreadGetDeviceRole(instance);
         esp_openthread_lock_release();
         if (role >= OT_DEVICE_ROLE_CHILD) {
-            joined = true;
             break;
         }
     }
-
-    if (!joined) {
-        ESP_LOGW(TAG, "Failed to join network after %d ms, entering deep sleep", CONFIG_JOIN_TIMEOUT_MS);
-        status_set_busy(false);
-        pm_deep_sleep();
-        /* Never reached */
-    }
-#endif
 
     ESP_LOGI(TAG, "Successfully joined Thread network!");
     status_it_worked();
     status_set_busy(false);
 
+    /* Configure SED mode - this will cause a detach/reattach */
     esp_openthread_lock_acquire(portMAX_DELAY);
     configure_sed_mode(instance);
     esp_openthread_lock_release();
 
-    /* Initialize thread comms */
+    /* Wait for re-attachment after SED mode change */
+    ESP_LOGI(TAG, "Waiting to re-attach as SED...");
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        esp_openthread_lock_acquire(portMAX_DELAY);
+        otDeviceRole role = otThreadGetDeviceRole(instance);
+        esp_openthread_lock_release();
+        if (role >= OT_DEVICE_ROLE_CHILD) {
+            break;
+        }
+    }
+    ESP_LOGI(TAG, "Re-attached as SED");
+
+    /* Initialize thread comms AFTER re-attached */
     thread_comms_init(g_device_name, THREAD_COMMS_SOURCE_END_DEVICE);
     thread_comms_set_callback(on_thread_message);
     thread_comms_start();

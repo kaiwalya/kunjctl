@@ -6,6 +6,7 @@
 
 #include "openthread/instance.h"
 #include "openthread/ip6.h"
+#include "openthread/thread.h"
 #include "openthread/udp.h"
 
 /* Nanopb */
@@ -16,7 +17,6 @@
 static const char *TAG = "thread_comms";
 
 #define THREAD_COMMS_PORT 5683
-#define THREAD_COMMS_MULTICAST_ADDR "ff03::1"
 
 /*── State ──*/
 
@@ -34,6 +34,7 @@ static thread_comms_callback_t g_callback = NULL;
 static void handle_receive(void *context, otMessage *message, const otMessageInfo *info)
 {
     (void)context;
+    (void)info;
 
     uint16_t len = otMessageGetLength(message) - otMessageGetOffset(message);
     if (len > Message_size + 16) {
@@ -117,10 +118,11 @@ static esp_err_t send_message(const Message *msg)
         return ESP_FAIL;
     }
 
-    /* Set destination */
+    /* Set destination - use Realm-Local All Thread Nodes address for SED compatibility */
     otMessageInfo info;
     memset(&info, 0, sizeof(info));
-    otIp6AddressFromString(THREAD_COMMS_MULTICAST_ADDR, &info.mPeerAddr);
+    const otIp6Address *multicast_addr = otThreadGetRealmLocalAllThreadNodesMulticastAddress(instance);
+    memcpy(&info.mPeerAddr, multicast_addr, sizeof(otIp6Address));
     info.mPeerPort = THREAD_COMMS_PORT;
 
     /* Send */
@@ -192,19 +194,22 @@ esp_err_t thread_comms_start(void)
         return ESP_FAIL;
     }
 
-    /* Subscribe to multicast address */
-    otIp6Address multicast_addr;
-    otIp6AddressFromString(THREAD_COMMS_MULTICAST_ADDR, &multicast_addr);
-    err = otIp6SubscribeMulticastAddress(instance, &multicast_addr);
+    /* Subscribe to Realm-Local All Thread Nodes multicast - required for SED reception */
+    const otIp6Address *multicast_addr = otThreadGetRealmLocalAllThreadNodesMulticastAddress(instance);
+    err = otIp6SubscribeMulticastAddress(instance, multicast_addr);
     if (err != OT_ERROR_NONE && err != OT_ERROR_ALREADY) {
         ESP_LOGW(TAG, "Failed to subscribe to multicast: %d (may already be subscribed)", err);
         /* Continue anyway - might already be subscribed */
     }
 
+    /* Log the multicast address for debugging */
+    char addr_str[40];
+    otIp6AddressToString(multicast_addr, addr_str, sizeof(addr_str));
+
     esp_openthread_lock_release();
 
     g_socket_open = true;
-    ESP_LOGI(TAG, "Thread comms started (port %d, multicast %s)", THREAD_COMMS_PORT, THREAD_COMMS_MULTICAST_ADDR);
+    ESP_LOGI(TAG, "Thread comms started (port %d, multicast %s)", THREAD_COMMS_PORT, addr_str);
     return ESP_OK;
 }
 
