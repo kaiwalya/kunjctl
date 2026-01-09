@@ -1,0 +1,4 @@
+dependencies:
+  idf: ">=4.1.0"
+  esp-idf-lib/dht: "^1.2.0"
+  espressif/led_strip: "^2.5.0"
