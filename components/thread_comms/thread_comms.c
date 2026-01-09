@@ -155,10 +155,10 @@ static void configure_sed_mode(otInstance *instance)
     mode.mNetworkData = false;   /* Minimal network data */
     otThreadSetLinkMode(instance, mode);
 
-    /* Disable automatic polling - caller will use thread_comms_poll() */
+    /* Poll period 0 = manual polling only via thread_comms_poll() */
     otLinkSetPollPeriod(instance, 0);
 
-    ESP_LOGI(TAG, "Configured as Sleepy End Device");
+    ESP_LOGI(TAG, "Configured as Sleepy End Device (manual poll)");
 }
 
 static esp_err_t wait_for_role(otDeviceRole min_role, const char *wait_msg)

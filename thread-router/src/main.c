@@ -50,7 +50,6 @@ void app_main(void)
 
     /* Power management */
     pm_config_t pm_cfg = {
-        .light_sleep_enable = false,
         .stats_interval_ms = PM_STATS_INTERVAL_MS,
     };
     pm_init(&pm_cfg);

@@ -25,6 +25,7 @@ relay_t *relay_init(void) {
     gpio_reset_pin(r->gpio);
     gpio_set_direction(r->gpio, GPIO_MODE_OUTPUT);
     gpio_set_level(r->gpio, 0);
+    gpio_hold_en(r->gpio);  /* Maintain state during sleep */
     r->state = false;
     r->has_state = true;
     ESP_LOGI(TAG, "Relay on GPIO %d", r->gpio);
@@ -40,7 +41,9 @@ void relay_deinit(relay_t *relay) {
 void relay_set(relay_t *relay, bool on) {
     if (relay->gpio == GPIO_DISABLED) return;
     relay->state = on;
+    gpio_hold_dis(relay->gpio);
     gpio_set_level(relay->gpio, on ? 1 : 0);
+    gpio_hold_en(relay->gpio);
 }
 
 const bool *relay_get_state(relay_t *relay) {

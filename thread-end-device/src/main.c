@@ -62,7 +62,6 @@ void app_main(void)
 
     /* Power management */
     pm_config_t pm_cfg = {
-        .light_sleep_enable = false,
         .stats_interval_ms = PM_STATS_INTERVAL_MS,
 #if CONFIG_FACTORY_RESET_BUTTON_ENABLED
         .wake_gpios = { { .gpio = CONFIG_FACTORY_RESET_BUTTON_GPIO, .active_low = true } },
