@@ -9,7 +9,7 @@ set_version("0.1.0")
 -- Build directory mirrors: build/<subproject>/<chip>/<name>/
 ----------------------------------------------------------------------
 
-local subprojects = {"thread-end-device", "thread-router"}
+local subprojects = {"thread-end-device", "thread-router", "thread-rcp"}
 local chips = {"esp32h2", "esp32s3", "esp32c6"}
 
 local setups = {}
