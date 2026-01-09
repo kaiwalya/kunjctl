@@ -24,8 +24,13 @@
 #include "sensors.h"
 #include "status.h"
 #include "relay.h"
+#include "thread_comms.h"
 
 static const char *TAG = "thread-end-device";
+
+/* Relay handle for command callback */
+static relay_t *g_relay = NULL;
+static char g_device_name[32];
 
 #define PM_STATS_INTERVAL_MS 60000
 
@@ -71,6 +76,26 @@ static void ot_mainloop(void *arg)
     vTaskDelete(NULL);
 }
 
+/**
+ * Handle incoming relay commands from thread_comms
+ */
+static void on_thread_message(const thread_comms_message_t *msg)
+{
+    if (msg->type != THREAD_COMMS_MSG_RELAY_CMD) {
+        return;  /* Ignore non-relay messages */
+    }
+
+    /* Check if this command is for us */
+    if (strcmp(msg->relay_cmd.device_id, g_device_name) != 0) {
+        return;  /* Not for us */
+    }
+
+    ESP_LOGI(TAG, "Received relay command: %s", msg->relay_cmd.relay_state ? "ON" : "OFF");
+    if (g_relay != NULL) {
+        relay_set(g_relay, msg->relay_cmd.relay_state);
+    }
+}
+
 #if CONFIG_FACTORY_RESET_BUTTON_ENABLED
 static void on_factory_reset_button(gpio_num_t gpio)
 {
@@ -86,9 +111,8 @@ void app_main(void)
     status_init();
     status_set_busy(true);
 
-    char device_name[32];
-    device_name_get(device_name, sizeof(device_name));
-    ESP_LOGI(TAG, "Thread End Device - %s", device_name);
+    device_name_get(g_device_name, sizeof(g_device_name));
+    ESP_LOGI(TAG, "Thread End Device - %s", g_device_name);
 
     /* Power management */
     pm_config_t pm_cfg = {
@@ -205,9 +229,14 @@ void app_main(void)
     configure_sed_mode(instance);
     esp_openthread_lock_release();
 
+    /* Initialize thread comms */
+    thread_comms_init(g_device_name, THREAD_COMMS_SOURCE_END_DEVICE);
+    thread_comms_set_callback(on_thread_message);
+    thread_comms_start();
+
     /* Initialize sensors and relay */
     sensors_t *sensors = sensors_init();
-    relay_t *relay = relay_init();
+    g_relay = relay_init();
 
     ESP_LOGI(TAG, "Entering main loop (interval: %d ms)", CONFIG_MAIN_LOOP_INTERVAL_MS);
 
@@ -217,19 +246,35 @@ void app_main(void)
         /* Read sensors */
         sensors_read(sensors);
 
-        /* Log sensor values */
+        /* Get current values */
         const float *temp = sensors_get_temperature(sensors);
         const float *hum = sensors_get_humidity(sensors);
-        const bool *relay_state = relay_get_state(relay);
+        const bool *relay_state = relay_get_state(g_relay);
 
-        if (temp && hum) {
-            ESP_LOGI(TAG, "Sensors: temp=%.1f°C humidity=%.1f%%", *temp, *hum);
+        /* Build and send report */
+        thread_comms_report_t report = {0};
+        strncpy(report.device_id, g_device_name, sizeof(report.device_id) - 1);
+        if (temp) {
+            report.has_temperature = true;
+            report.temperature = *temp;
+        }
+        if (hum) {
+            report.has_humidity = true;
+            report.humidity = *hum;
         }
         if (relay_state) {
-            ESP_LOGI(TAG, "Relay: %s", *relay_state ? "ON" : "OFF");
+            report.has_relay_state = true;
+            report.relay_state = *relay_state;
         }
 
-        /* TODO: Queue UDP packet with sensor data here */
+        esp_err_t err = thread_comms_send_report(&report);
+        if (err == ESP_OK) {
+            ESP_LOGI(TAG, "Sent report: temp=%.1f°C humidity=%.1f%% relay=%s",
+                     temp ? *temp : 0, hum ? *hum : 0,
+                     relay_state ? (*relay_state ? "ON" : "OFF") : "N/A");
+        } else {
+            ESP_LOGW(TAG, "Failed to send report: %s", esp_err_to_name(err));
+        }
 
         /* Poll parent - sends queued data and receives buffered commands */
         esp_openthread_lock_acquire(portMAX_DELAY);

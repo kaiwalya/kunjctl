@@ -20,8 +20,10 @@
 
 #include "device_name.h"
 #include "power_management.h"
+#include "thread_comms.h"
 
 static const char *TAG = "thread-router";
+static char g_device_name[32];
 
 #define PM_STATS_INTERVAL_MS 60000
 
@@ -61,11 +63,27 @@ static void ot_mainloop(void *arg)
     vTaskDelete(NULL);
 }
 
+/**
+ * Handle incoming messages from thread_comms
+ */
+static void on_thread_message(const thread_comms_message_t *msg)
+{
+    if (msg->type == THREAD_COMMS_MSG_REPORT) {
+        const thread_comms_report_t *r = &msg->report;
+        ESP_LOGI(TAG, "Report from '%s': temp=%.1f°C humidity=%.1f%% relay=%s",
+                 r->device_id,
+                 r->has_temperature ? r->temperature : 0,
+                 r->has_humidity ? r->humidity : 0,
+                 r->has_relay_state ? (r->relay_state ? "ON" : "OFF") : "N/A");
+    } else if (msg->type == THREAD_COMMS_MSG_RELAY_CMD) {
+        /* Ignore relay commands (we send them, not receive) */
+    }
+}
+
 void app_main(void)
 {
-    char device_name[32];
-    device_name_get(device_name, sizeof(device_name));
-    ESP_LOGI(TAG, "Thread Router - %s", device_name);
+    device_name_get(g_device_name, sizeof(g_device_name));
+    ESP_LOGI(TAG, "Thread Router - %s", g_device_name);
 
     /* Power management */
     pm_config_t pm_cfg = {
@@ -166,18 +184,28 @@ void app_main(void)
 
     xTaskCreate(ot_mainloop, "ot_mainloop", 4096, NULL, 5, NULL);
 
-    /* Debug: print active dataset periodically */
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(10000));
-        otOperationalDataset active;
+    /* Wait for network to be ready before starting thread_comms */
+    ESP_LOGI(TAG, "Waiting for Thread network to form...");
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(500));
         esp_openthread_lock_acquire(portMAX_DELAY);
-        otDatasetGetActive(instance, &active);
+        otDeviceRole role = otThreadGetDeviceRole(instance);
         esp_openthread_lock_release();
-        ESP_LOGI(TAG, "Network: '%s', ExtPAN: %02x%02x%02x%02x%02x%02x%02x%02x",
-                 active.mNetworkName.m8,
-                 active.mExtendedPanId.m8[0], active.mExtendedPanId.m8[1],
-                 active.mExtendedPanId.m8[2], active.mExtendedPanId.m8[3],
-                 active.mExtendedPanId.m8[4], active.mExtendedPanId.m8[5],
-                 active.mExtendedPanId.m8[6], active.mExtendedPanId.m8[7]);
+        if (role >= OT_DEVICE_ROLE_CHILD) {
+            break;
+        }
+    }
+    ESP_LOGI(TAG, "Thread network ready");
+
+    /* Initialize thread comms */
+    thread_comms_init(g_device_name, THREAD_COMMS_SOURCE_ROUTER);
+    thread_comms_set_callback(on_thread_message);
+    thread_comms_start();
+
+    ESP_LOGI(TAG, "Router running - listening for sensor reports...");
+
+    /* Keep running */
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(60000));
     }
 }

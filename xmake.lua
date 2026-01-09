@@ -198,18 +198,22 @@ task("codegen")
         options = {}
     }
     on_run(function ()
-        local proto_dir = "components/comms/proto"
-        local proto_files = os.files(path.join(proto_dir, "*.proto"))
-        if #proto_files == 0 then
-            print("No .proto files found in " .. proto_dir)
-            return
+        local proto_dirs = {
+            "components/comms/proto",
+            "components/thread_comms/proto",
+        }
+        for _, proto_dir in ipairs(proto_dirs) do
+            local proto_files = os.files(path.join(proto_dir, "*.proto"))
+            if #proto_files > 0 then
+                print("Processing: " .. proto_dir)
+                local old_dir = os.cd(proto_dir)
+                for _, proto_file in ipairs(proto_files) do
+                    local filename = path.filename(proto_file)
+                    print("  Generating: " .. filename)
+                    os.exec("nanopb_generator %s", filename)
+                end
+                os.cd(old_dir)
+            end
         end
-        local old_dir = os.cd(proto_dir)
-        for _, proto_file in ipairs(proto_files) do
-            local filename = path.filename(proto_file)
-            print("Generating: " .. filename)
-            os.exec("nanopb_generator %s", filename)
-        end
-        os.cd(old_dir)
         print("Codegen complete")
     end)

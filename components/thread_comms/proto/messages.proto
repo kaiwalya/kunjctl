@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+message Report {
+    string device_id = 1;
+    optional float temperature = 2;
+    optional float humidity = 3;
+    optional bool relay_state = 4;
+}
+
+message RelayCommand {
+    string device_id = 1;
+    bool relay_state = 2;
+}
+
+message Message {
+    oneof payload {
+        Report report = 1;
+        RelayCommand relay_cmd = 2;
+    }
+}

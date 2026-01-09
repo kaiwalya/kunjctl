@@ -1,0 +1,5 @@
+# nanopb options for thread_comms messages
+
+# Device ID max length
+Report.device_id            max_size:32
+RelayCommand.device_id      max_size:32
