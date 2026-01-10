@@ -72,6 +72,6 @@ direct_dependencies:
 - espressif/led_strip
 - idf
 - nikas-belogolov/nanopb
-manifest_hash: 104bcdb580e5a2f5e98787613b28abfa6bf89e7eece269b846e0d37d3d73f88d
+manifest_hash: 2c5d705234838940ef3f06c37a0044f81772c82457ae162b22cab38d54ce46d4
 target: esp32h2
 version: 2.0.0

@@ -1,5 +1,5 @@
-# Match thread-end-device dependencies to keep lock file stable
+# Match other subprojects' dependencies to keep lock file stable
 dependencies:
-  idf: ">=5.0.0"
+  idf: ">=5.0"
   esp-idf-lib/dht: "^1.2.0"
   espressif/led_strip: "^2.5.0"

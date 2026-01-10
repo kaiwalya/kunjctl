@@ -70,7 +70,24 @@ void app_main(void)
 
     /* Thread networking and comms */
     thread_comms_set_callback(on_thread_message);
-    ESP_ERROR_CHECK(thread_comms_init(device_name, THREAD_COMMS_SOURCE_ROUTER));
+
+    thread_comms_config_t comms_cfg = {
+        .device_id = device_name,
+        .source = THREAD_COMMS_SOURCE_ROUTER,
+#if CONFIG_OPENTHREAD_RADIO_SPINEL_UART
+        /* S3: Use UART to RCP - ESP Thread Border Router board pins */
+        .use_uart_rcp = true,
+        .uart = {
+            .port = 1,
+            .tx_pin = 18,  /* S3 TX -> H2 RXD0 */
+            .rx_pin = 17,  /* S3 RX <- H2 TXD0 */
+        },
+#else
+        /* H2: Native radio */
+        .use_uart_rcp = false,
+#endif
+    };
+    ESP_ERROR_CHECK(thread_comms_init(&comms_cfg));
 
     ESP_LOGI(TAG, "Router running - listening for sensor reports...");
 

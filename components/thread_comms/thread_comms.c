@@ -87,6 +87,10 @@ static void ot_mainloop(void *arg)
     vTaskDelete(NULL);
 }
 
+#if CONFIG_OPENTHREAD_RADIO_SPINEL_UART
+#include "driver/uart.h"
+#endif
+
 static void configure_dataset(otInstance *instance)
 {
     otOperationalDataset dataset;
@@ -336,25 +340,47 @@ static esp_err_t send_message(const Message *msg)
 
 /*── Public API ──*/
 
-esp_err_t thread_comms_init(const char *device_id, thread_comms_source_t source)
+esp_err_t thread_comms_init(const thread_comms_config_t *config)
 {
     if (g_initialized) {
         return ESP_ERR_INVALID_STATE;
     }
 
-    strncpy(g_device_id, device_id, sizeof(g_device_id) - 1);
+    strncpy(g_device_id, config->device_id, sizeof(g_device_id) - 1);
     g_device_id[sizeof(g_device_id) - 1] = '\0';
-    g_source = source;
+    g_source = config->source;
 
-    const char *type_str = (source == THREAD_COMMS_SOURCE_ROUTER) ? "router" : "end-device";
-    ESP_LOGI(TAG, "Initializing as '%s' (%s)", device_id, type_str);
+    const char *type_str = (config->source == THREAD_COMMS_SOURCE_ROUTER) ? "router" : "end-device";
+    const char *radio_str = config->use_uart_rcp ? "UART RCP" : "native";
+    ESP_LOGI(TAG, "Initializing as '%s' (%s, %s)", config->device_id, type_str, radio_str);
 
     /* OpenThread platform init */
     esp_openthread_platform_config_t ot_config = {
-        .radio_config = { .radio_mode = RADIO_MODE_NATIVE },
         .host_config = { .host_connection_mode = HOST_CONNECTION_MODE_NONE },
         .port_config = { .storage_partition_name = "nvs", .netif_queue_size = 10, .task_queue_size = 10 },
     };
+
+    if (config->use_uart_rcp) {
+#if CONFIG_OPENTHREAD_RADIO_SPINEL_UART
+        /* Configure for UART RCP - MUST use XTAL clock for accurate baud */
+        ot_config.radio_config.radio_mode = RADIO_MODE_UART_RCP;
+        ot_config.radio_config.radio_uart_config.port = config->uart.port;
+        ot_config.radio_config.radio_uart_config.uart_config = (uart_config_t){
+            .baud_rate = 115200,
+            .data_bits = UART_DATA_8_BITS,
+            .parity = UART_PARITY_DISABLE,
+            .stop_bits = UART_STOP_BITS_1,
+            .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+            .source_clk = UART_SCLK_XTAL,  /* Critical for H2-S3 communication */
+        };
+        ot_config.radio_config.radio_uart_config.tx_pin = config->uart.tx_pin;
+        ot_config.radio_config.radio_uart_config.rx_pin = config->uart.rx_pin;
+#endif
+    } else {
+        /* Native radio mode */
+        ot_config.radio_config.radio_mode = RADIO_MODE_NATIVE;
+    }
+
     ESP_ERROR_CHECK(esp_openthread_init(&ot_config));
 
     /* Create OpenThread netif */
@@ -362,7 +388,7 @@ esp_err_t thread_comms_init(const char *device_id, thread_comms_source_t source)
     esp_netif_t *netif = esp_netif_new(&netif_cfg);
     ESP_ERROR_CHECK(esp_netif_attach(netif, esp_openthread_netif_glue_init(&ot_config)));
 
-    otLoggingSetLevel(OT_LOG_LEVEL_NOTE);
+    /* Log level set via CONFIG_OPENTHREAD_LOG_LEVEL_* in setup config */
 
     otInstance *instance = esp_openthread_get_instance();
 
@@ -374,15 +400,15 @@ esp_err_t thread_comms_init(const char *device_id, thread_comms_source_t source)
     otThreadSetEnabled(instance, true);
     esp_openthread_lock_release();
 
-    /* Start OpenThread mainloop task */
-    xTaskCreate(ot_mainloop, "ot_mainloop", 4096, NULL, 5, NULL);
+    /* Start OpenThread mainloop task - UART RCP mode needs larger stack for VFS/select */
+    xTaskCreate(ot_mainloop, "ot_mainloop", 8192, NULL, 5, NULL);
 
     /* Wait for network */
     wait_for_role(OT_DEVICE_ROLE_CHILD, "Waiting for Thread network...");
     ESP_LOGI(TAG, "Connected to Thread network");
 
     /* End-device: configure SED mode */
-    if (source == THREAD_COMMS_SOURCE_END_DEVICE) {
+    if (config->source == THREAD_COMMS_SOURCE_END_DEVICE) {
         esp_openthread_lock_acquire(portMAX_DELAY);
         configure_sed_mode(instance);
         esp_openthread_lock_release();

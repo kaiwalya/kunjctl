@@ -46,6 +46,25 @@ typedef struct {
 
 typedef void (*thread_comms_callback_t)(const thread_comms_message_t *msg);
 
+/**
+ * @brief UART configuration for RCP connection
+ */
+typedef struct {
+    int port;       /* UART port number (e.g., 1) */
+    int tx_pin;     /* GPIO for TX */
+    int rx_pin;     /* GPIO for RX */
+} thread_comms_uart_config_t;
+
+/**
+ * @brief Thread comms initialization config
+ */
+typedef struct {
+    const char *device_id;              /* Device identifier */
+    thread_comms_source_t source;       /* End device or router */
+    bool use_uart_rcp;                  /* true = UART to RCP, false = native radio */
+    thread_comms_uart_config_t uart;    /* Only used if use_uart_rcp = true */
+} thread_comms_config_t;
+
 /*── Lifecycle ──*/
 
 /**
@@ -61,11 +80,10 @@ typedef void (*thread_comms_callback_t)(const thread_comms_message_t *msg);
  * Prerequisites: esp_netif_init(), esp_event_loop_create_default(),
  *                esp_vfs_eventfd_register() must be called first.
  *
- * @param device_id Device identifier (copied internally)
- * @param source Whether this is an end device or router
+ * @param config Initialization configuration
  * @return ESP_OK on success
  */
-esp_err_t thread_comms_init(const char *device_id, thread_comms_source_t source);
+esp_err_t thread_comms_init(const thread_comms_config_t *config);
 
 /**
  * @brief Deinitialize thread comms

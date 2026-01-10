@@ -92,7 +92,13 @@ void app_main(void)
 
     /* Thread networking and comms */
     thread_comms_set_callback(on_thread_message);
-    ESP_ERROR_CHECK(thread_comms_init(g_device_name, THREAD_COMMS_SOURCE_END_DEVICE));
+
+    thread_comms_config_t comms_cfg = {
+        .device_id = g_device_name,
+        .source = THREAD_COMMS_SOURCE_END_DEVICE,
+        .use_uart_rcp = false,  /* End device always uses native radio */
+    };
+    ESP_ERROR_CHECK(thread_comms_init(&comms_cfg));
 
     status_it_worked();
     status_set_busy(false);
@@ -102,9 +108,9 @@ void app_main(void)
     g_relay = relay_init(g_relay_state);
 
     /* Duty cycle: active for ACTIVE_MS, then deep sleep for SLEEP_MS */
-    #define ACTIVE_MS  1500
+    #define ACTIVE_MS  3000
     #define SLEEP_MS   60000
-    #define LOOP_MS    100   /* Poll interval during active period */
+    #define LOOP_MS    500   /* Poll interval during active period */
 
     ESP_LOGI(TAG, "Duty cycle: %dms active, %dms sleep", ACTIVE_MS, SLEEP_MS);
 
