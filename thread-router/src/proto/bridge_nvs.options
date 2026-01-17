@@ -1,0 +1,4 @@
+# nanopb options for bridge NVS messages
+
+# Device ID max length (17 chars + null = 18)
+BridgeNvsDevice.device_id   max_size:18

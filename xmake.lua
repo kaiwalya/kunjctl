@@ -264,6 +264,7 @@ task("codegen")
     on_run(function ()
         local proto_dirs = {
             "components/thread_comms/proto",
+            "thread-router/src/proto",
         }
         for _, proto_dir in ipairs(proto_dirs) do
             local proto_files = os.files(path.join(proto_dir, "*.proto"))
