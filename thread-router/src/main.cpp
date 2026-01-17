@@ -114,7 +114,7 @@ extern "C" void app_main(void)
     };
     ESP_ERROR_CHECK(thread_comms_init(&comms_cfg));
 
-    /* Create Matter node (empty - just root device) */
+    /* Create Matter node */
     ESP_LOGI(TAG, "Creating Matter node...");
     node::config_t node_config;
     node_t *node = node::create(&node_config, app_attribute_update_cb, app_identification_cb);
@@ -122,7 +122,15 @@ extern "C" void app_main(void)
         ESP_LOGE(TAG, "Failed to create Matter node");
         return;
     }
-    ESP_LOGI(TAG, "Matter node created");
+
+    /* Create aggregator endpoint for bridging Thread devices */
+    endpoint::aggregator::config_t aggregator_config;
+    endpoint_t *aggregator = endpoint::aggregator::create(node, &aggregator_config, ENDPOINT_FLAG_NONE, NULL);
+    if (!aggregator) {
+        ESP_LOGE(TAG, "Failed to create aggregator endpoint");
+        return;
+    }
+    ESP_LOGI(TAG, "Matter bridge created (aggregator endpoint ready)");
 
     /* Start Matter */
     err = esp_matter::start(NULL);
