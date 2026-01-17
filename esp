@@ -1,0 +1,21 @@
+#!/bin/bash
+# Docker wrapper for ESP-Matter builds
+# Usage: ./esp idf.py build
+
+ESP_MATTER_DEVICE_PATH="/opt/espressif/esp-matter/device_hal/device/esp32s3_devkit_c"
+
+if [ -t 0 ]; then
+    docker run --rm -it \
+        -v "$PWD":/project \
+        -w /project \
+        -e ESP_MATTER_DEVICE_PATH="$ESP_MATTER_DEVICE_PATH" \
+        espressif/esp-matter:release-v1.5 \
+        bash -c "cd /project && $*"
+else
+    docker run --rm -i \
+        -v "$PWD":/project \
+        -w /project \
+        -e ESP_MATTER_DEVICE_PATH="$ESP_MATTER_DEVICE_PATH" \
+        espressif/esp-matter:release-v1.5 \
+        bash -c "cd /project && $*"
+fi

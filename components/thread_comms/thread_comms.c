@@ -199,7 +199,7 @@ static esp_err_t start_udp(void)
     otSockAddr sockaddr;
     memset(&sockaddr, 0, sizeof(sockaddr));
     sockaddr.mPort = THREAD_COMMS_PORT;
-    err = otUdpBind(instance, &g_socket, &sockaddr, OT_NETIF_THREAD_HOST);
+    err = otUdpBind(instance, &g_socket, &sockaddr, OT_NETIF_THREAD);
     if (err != OT_ERROR_NONE) {
         ESP_LOGE(TAG, "Failed to bind UDP socket: %d", err);
         otUdpClose(instance, &g_socket);

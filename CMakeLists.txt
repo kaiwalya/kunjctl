@@ -17,5 +17,21 @@ set(EXTRA_COMPONENT_DIRS
     "${CMAKE_SOURCE_DIR}/${SUBPROJECT}"
     "${CMAKE_SOURCE_DIR}/components")
 
+# Optional: esp-matter support (requires Docker build with ESP_MATTER_PATH)
+if(DEFINED ENV{ESP_MATTER_PATH})
+    set(ESP_MATTER_PATH $ENV{ESP_MATTER_PATH})
+    set(MATTER_SDK_PATH ${ESP_MATTER_PATH}/connectedhomeip/connectedhomeip)
+    list(APPEND EXTRA_COMPONENT_DIRS
+        "${ESP_MATTER_PATH}/components"
+        "${MATTER_SDK_PATH}/config/esp32/components")
+endif()
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(${SUBPROJECT})
+
+# Matter build options (only when esp-matter is available)
+if(DEFINED ENV{ESP_MATTER_PATH})
+    idf_build_set_property(CXX_COMPILE_OPTIONS "-std=gnu++17;-Os;-DCHIP_HAVE_CONFIG_H" APPEND)
+    idf_build_set_property(C_COMPILE_OPTIONS "-Os" APPEND)
+    idf_build_set_property(COMPILE_OPTIONS "-Wno-format-nonliteral;-Wno-format-security" APPEND)
+endif()

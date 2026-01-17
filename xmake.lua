@@ -56,9 +56,9 @@ local function require_setup(setup, raise)
 end
 
 ----------------------------------------------------------------------
--- Helper: get idf.py command prefix
+-- Helper: get native idf.py command prefix
 ----------------------------------------------------------------------
-local function idf_py()
+local function idf_py_native()
     return string.format('%s/bin/python3 "%s/tools/idf.py"',
         os.getenv("IDF_PYTHON_ENV_PATH"),
         os.getenv("IDF_PATH"))
@@ -72,24 +72,46 @@ for setup_name, setup in pairs(setups) do
     target(setup_name)
         set_kind("phony")
         on_build(function (target)
-            local s = setups[target:name()]
+                        local s = setups[target:name()]
             -- Build path mirrors setups: build/<subproject>/<chip>/<name>/
             local build_dir = path.join("build", s.subproject, s.chip, s.name)
 
-            local sdkconfig_defaults = "sdkconfig.defaults;" .. s.conf
+            -- Check if config requires Docker (Matter enabled)
+            local conf_content = io.readfile(s.conf) or ""
+            local use_docker = conf_content:find("CONFIG_ESP_MATTER_ENABLED=y") ~= nil
 
-            -- Auto set-target if CMakeCache is missing
-            local cmake_cache = path.join(build_dir, "CMakeCache.txt")
-            if not os.isfile(cmake_cache) then
-                os.exec('%s -B %s -D SDKCONFIG_DEFAULTS="%s" set-target %s',
-                    idf_py(), build_dir, sdkconfig_defaults, s.chip)
+            if use_docker then
+                -- Docker build: SDKCONFIG_DEFAULTS passed via env in esp wrapper
+                local idf_docker = './esp "SDKCONFIG_DEFAULTS=\'sdkconfig.defaults;' .. s.conf .. '\' idf.py'
+                local cmake_cache = path.join(build_dir, "CMakeCache.txt")
+                if not os.isfile(cmake_cache) then
+                    os.exec('%s -B %s set-target %s"', idf_docker, build_dir, s.chip)
+                end
+                os.exec('%s -B %s build"', idf_docker, build_dir)
+            else
+                -- Native build
+                local sdkconfig_defaults = "sdkconfig.defaults;" .. s.conf
+                local cmake_cache = path.join(build_dir, "CMakeCache.txt")
+                if not os.isfile(cmake_cache) then
+                    os.exec('%s -B %s -D SDKCONFIG_DEFAULTS="%s" set-target %s',
+                        idf_py_native(), build_dir, sdkconfig_defaults, s.chip)
+                end
+                os.exec('%s -B %s build', idf_py_native(), build_dir)
             end
-            os.exec('%s -B %s build', idf_py(), build_dir)
         end)
         on_clean(function (target)
-            local s = setups[target:name()]
+                        local s = setups[target:name()]
             local build_dir = path.join("build", s.subproject, s.chip, s.name)
-            os.exec('%s -B %s fullclean', idf_py(), build_dir)
+
+            local conf_content = io.readfile(s.conf) or ""
+            local use_docker = conf_content:find("CONFIG_ESP_MATTER_ENABLED=y") ~= nil
+
+            if use_docker then
+                local idf_docker = './esp "SDKCONFIG_DEFAULTS=\'sdkconfig.defaults;' .. s.conf .. '\' idf.py'
+                os.exec('%s -B %s fullclean"', idf_docker, build_dir)
+            else
+                os.exec('%s -B %s fullclean', idf_py_native(), build_dir)
+            end
         end)
 end
 
@@ -112,8 +134,26 @@ task("flash")
         local s = require_setup(option.get("setup"), raise)
         local port = option.get("port")
         local build_dir = path.join("build", s.subproject, s.chip, s.name)
-        local port_arg = port and ("-p " .. port) or ""
-        os.exec('%s -B %s %s flash', idf_py(), build_dir, port_arg)
+
+        -- Check if this was a Docker build (Matter enabled)
+        local conf_content = io.readfile(s.conf) or ""
+        local use_docker = conf_content:find("CONFIG_ESP_MATTER_ENABLED=y") ~= nil
+
+        if use_docker then
+            -- Build first (esptool doesn't auto-build like idf.py)
+            os.exec('xmake build %s', option.get("setup"))
+            -- Docker builds have wrong project path in CMake cache, use esptool directly
+            -- Run from build dir since flash_args has relative paths
+            local port_arg = port and ("-p " .. port) or ""
+            local python = os.getenv("IDF_PYTHON_ENV_PATH") .. "/bin/python3"
+            local old_dir = os.cd(build_dir)
+            os.exec('%s -m esptool %s --chip %s -b 460800 --before default_reset --after hard_reset write_flash "@flash_args"',
+                python, port_arg, s.chip)
+            os.cd(old_dir)
+        else
+            local port_arg = port and ("-p " .. port) or ""
+            os.exec('%s -B %s %s flash', idf_py_native(), build_dir, port_arg)
+        end
     end)
 
 task("monitor")
@@ -132,7 +172,7 @@ task("monitor")
         local port = option.get("port")
         local build_dir = path.join("build", s.subproject, s.chip, s.name)
         local port_arg = port and ("-p " .. port) or ""
-        os.exec('%s -B %s %s monitor', idf_py(), build_dir, port_arg)
+        os.exec('%s -B %s %s monitor', idf_py_native(), build_dir, port_arg)
     end)
 
 task("fm")
@@ -150,8 +190,27 @@ task("fm")
         local s = require_setup(option.get("setup"), raise)
         local port = option.get("port")
         local build_dir = path.join("build", s.subproject, s.chip, s.name)
-        local port_arg = port and ("-p " .. port) or ""
-        os.exec('%s -B %s %s flash monitor', idf_py(), build_dir, port_arg)
+
+        -- Check if this was a Docker build (Matter enabled)
+        local conf_content = io.readfile(s.conf) or ""
+        local use_docker = conf_content:find("CONFIG_ESP_MATTER_ENABLED=y") ~= nil
+
+        if use_docker then
+            -- Build first (esptool doesn't auto-build like idf.py)
+            os.exec('xmake build %s', option.get("setup"))
+            -- Flash with esptool (run from build dir since flash_args has relative paths)
+            local port_arg = port and ("-p " .. port) or ""
+            local python = os.getenv("IDF_PYTHON_ENV_PATH") .. "/bin/python3"
+            local old_dir = os.cd(build_dir)
+            os.exec('%s -m esptool %s --chip %s -b 460800 --before default_reset --after hard_reset write_flash "@flash_args"',
+                python, port_arg, s.chip)
+            os.cd(old_dir)
+            -- Monitor uses idf.py (doesn't have path issue)
+            os.exec('%s -B %s %s monitor --no-reset', idf_py_native(), build_dir, port_arg)
+        else
+            local port_arg = port and ("-p " .. port) or ""
+            os.exec('%s -B %s %s flash monitor', idf_py_native(), build_dir, port_arg)
+        end
     end)
 
 task("menuconfig")
@@ -165,9 +224,18 @@ task("menuconfig")
     }
     on_run(function ()
         import("core.base.option")
-        local s = require_setup(option.get("setup"), raise)
+                local s = require_setup(option.get("setup"), raise)
         local build_dir = path.join("build", s.subproject, s.chip, s.name)
-        os.exec('%s -B %s menuconfig', idf_py(), build_dir)
+
+        local conf_content = io.readfile(s.conf) or ""
+        local use_docker = conf_content:find("CONFIG_ESP_MATTER_ENABLED=y") ~= nil
+
+        if use_docker then
+            local idf_docker = './esp "SDKCONFIG_DEFAULTS=\'sdkconfig.defaults;' .. s.conf .. '\' idf.py'
+            os.exec('%s -B %s menuconfig"', idf_docker, build_dir)
+        else
+            os.exec('%s -B %s menuconfig', idf_py_native(), build_dir)
+        end
     end)
 
 task("size")
@@ -183,7 +251,7 @@ task("size")
         import("core.base.option")
         local s = require_setup(option.get("setup"), raise)
         local build_dir = path.join("build", s.subproject, s.chip, s.name)
-        os.exec('%s -B %s size', idf_py(), build_dir)
+        os.exec('%s -B %s size', idf_py_native(), build_dir)
     end)
 
 task("codegen")
