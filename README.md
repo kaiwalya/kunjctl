@@ -50,23 +50,24 @@ The generated files (`messages.pb.c/.h`) are checked into the repo. Use `xmake c
 ```
 home_automation/
 ├── components/                   # Shared components
-│   ├── comms/                    # BLE communications
-│   │   ├── comms.c/.h
+│   ├── thread_comms/             # Thread communications
+│   │   ├── thread_comms.c/.h
 │   │   └── proto/                # Protocol buffers
 │   │       ├── messages.proto
 │   │       ├── messages.options
 │   │       └── messages.pb.c/.h  (generated)
 │   ├── device_name/              # Deterministic device name
 │   └── power_management/         # PM init, stats, sleep
-├── node/                         # Node firmware
+├── thread-end-device/            # Thread End Device firmware
 │   ├── src/
 │   │   ├── main.c
-│   │   ├── inputs/sensors.c/.h   # DHT11/DHT22 temperature/humidity
-│   │   ├── outputs/status.c/.h   # Status LED (WS2812)
-│   │   └── state/state.c/.h      # Pairing state (NVS)
+│   │   └── ...
 │   └── Kconfig.projbuild
-├── hub/                          # Hub firmware
+├── thread-router/                # Thread Router/Border Router firmware
 │   └── src/main.c
+├── thread-rcp/                   # Thread Radio Co-Processor firmware
+│   └── src/main.c
+├── setups/                       # Build configurations (targets)
 ├── sdkconfig.defaults
 └── xmake.lua
 ```
@@ -79,47 +80,59 @@ home_automation/
 # Configure all targets
 xmake set-target
 
-# Or configure specific target
-xmake set-target -s node -c esp32h2
+# Or configure specific target (example)
+xmake set-target -s thread-end-device -c esp32h2
 ```
 
 ### Building
 
 ```bash
-# Build specific target (recommended)
-xmake build node-esp32h2
-xmake build node-esp32s3
+# Build specific setup (recommended)
+# Syntax: <subproject>-<chip>-<config_name>
+
+# Thread End Device on ESP32-H2 DevKitM
+xmake build thread-end-device-esp32h2-devkitm
+
+# Thread Border Router on ESP32-S3
+xmake build thread-router-esp32s3-thread-border-router
+
+# Thread Radio Co-Processor (RCP) on ESP32-H2
+xmake build thread-rcp-esp32h2-thread-border-router
 
 # Clean
-xmake clean node-esp32h2
+xmake clean thread-end-device-esp32h2-devkitm
 ```
 
 > **Warning**: Do NOT build multiple targets in parallel (`xmake` without a specific target). This causes race conditions and corrupted build artifacts.
 
 ### Flashing & Monitoring
 
+The `flash`, `monitor`, and `fm` (flash + monitor) commands accept an optional `-p <port>` parameter to specify the serial port. If omitted, `idf.py` will attempt to auto-detect the port.
+
 ```bash
-# Flash firmware
-xmake flash -s node -c esp32h2
+# Flash firmware (auto-detect port)
+xmake flash -s thread-end-device -c esp32h2
 
-# Serial monitor
-xmake monitor -s node -c esp32h2
+# Serial monitor (auto-detect port)
+xmake monitor -s thread-end-device -c esp32h2
 
-# Flash and monitor
-xmake fm -s node -c esp32h2
+# Flash and monitor (auto-detect port)
+xmake fm -s thread-end-device -c esp32h2
 
-# Specify port
-xmake flash -s node -c esp32h2 -p /dev/tty.usbserial-0001
+# Explicitly specify port (recommended if multiple devices connected)
+xmake flash -s thread-end-device -c esp32h2 -p /dev/tty.usbserial-0001
+xmake monitor -s thread-end-device -c esp32h2 -p /dev/tty.usbserial-0001
+xmake fm -s thread-end-device -c esp32h2 -p /dev/tty.usbserial-0001
 ```
 
 ### Configuration
 
 ```bash
 # Open menuconfig
-xmake menuconfig -s node -c esp32h2
+xmake menuconfig -s thread-end-device -c esp32h2
 
 # Show firmware size
-xmake size -s node -c esp32h2
+xmake size -s thread-end-device -c esp32h2
 ```
 
 ### Code Generation
@@ -138,8 +151,8 @@ xmake codegen
 
 | Chip | Description |
 |------|-------------|
-| esp32h2 | ESP32-H2 (RISC-V, BLE 5, IEEE 802.15.4) |
-| esp32s3 | ESP32-S3 (Xtensa dual-core, Wi-Fi, BLE 5) |
+| esp32h2 | ESP32-H2 (RISC-V, Thread/Zigbee/BLE 5, IEEE 802.15.4) |
+| esp32s3 | ESP32-S3 (Xtensa dual-core, Wi-Fi, BLE 5, Thread Border Router Host) |
 
 ## Power Management
 
