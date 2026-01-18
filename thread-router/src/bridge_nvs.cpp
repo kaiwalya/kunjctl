@@ -249,3 +249,21 @@ std::vector<BridgeDeviceState> bridge_nvs_load_all_devices()
     ESP_LOGI(TAG, "Loaded %zu devices from NVS", devices.size());
     return devices;
 }
+
+esp_err_t bridge_nvs_erase_all()
+{
+    esp_err_t err = nvs_erase_all(s_nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to erase all: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    err = nvs_commit(s_nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to commit: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    ESP_LOGW(TAG, "Erased all bridge data from NVS");
+    return ESP_OK;
+}

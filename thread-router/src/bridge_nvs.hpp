@@ -34,6 +34,9 @@ esp_err_t bridge_nvs_delete_device(const char *hex_suffix);
 // Load all devices from NVS
 std::vector<BridgeDeviceState> bridge_nvs_load_all_devices();
 
+// Erase all bridge data from NVS (keeps Matter pairing intact)
+esp_err_t bridge_nvs_erase_all();
+
 // Extract hex suffix from device_id: "vivid-falcon-a3f2" -> "a3f2"
 // Returns pointer to suffix within device_id, or nullptr if invalid format
 const char *bridge_nvs_get_hex_suffix(const char *device_id);

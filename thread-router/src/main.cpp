@@ -3,6 +3,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "driver/gpio.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
@@ -15,11 +16,17 @@ extern "C" {
 #include "thread_comms.h"
 }
 
+// Boot button GPIO (active low)
+#define BOOT_BUTTON_GPIO GPIO_NUM_0
+#define BOOT_BUTTON_HOLD_MS 3000
+#define BOOT_BUTTON_CHECK_DELAY_MS 1000
+
 #include <esp_matter.h>
 #include <esp_matter_core.h>
 #include <esp_matter_endpoint.h>
+#include <app/clusters/on-off-server/on-off-server.h>
 
-#include "bridge_nvs.hpp"
+#include "bridge_state.hpp"
 
 using namespace esp_matter;
 
@@ -27,14 +34,17 @@ static const char *TAG = "tr-router";
 
 #define PM_STATS_INTERVAL_MS 60000
 
-// Mutex for serializing access to bridge_nvs
+// Mutex for serializing access to bridge state
 static SemaphoreHandle_t s_bridge_mutex = nullptr;
 
-// RAII lock guard
+// Global bridge state manager
+static BridgeState g_bridge;
+
+// RAII lock guard (recursive mutex to allow nested locking)
 class BridgeLock {
 public:
-    BridgeLock() { if (s_bridge_mutex) xSemaphoreTake(s_bridge_mutex, portMAX_DELAY); }
-    ~BridgeLock() { if (s_bridge_mutex) xSemaphoreGive(s_bridge_mutex); }
+    BridgeLock() { if (s_bridge_mutex) xSemaphoreTakeRecursive(s_bridge_mutex, portMAX_DELAY); }
+    ~BridgeLock() { if (s_bridge_mutex) xSemaphoreGiveRecursive(s_bridge_mutex); }
     BridgeLock(const BridgeLock&) = delete;
     BridgeLock& operator=(const BridgeLock&) = delete;
 };
@@ -45,8 +55,16 @@ static esp_err_t app_attribute_update_cb(attribute::callback_type_t type,
                                          uint32_t attribute_id, esp_matter_attr_val_t *val,
                                          void *priv_data)
 {
-    ESP_LOGI(TAG, "Attribute update: endpoint=%d, cluster=0x%lx, attr=0x%lx",
-             endpoint_id, (unsigned long)cluster_id, (unsigned long)attribute_id);
+    // Handle OnOff cluster commands from Matter controllers
+    // Skip if this update is from our own Thread report processing
+    if (type == attribute::PRE_UPDATE &&
+        cluster_id == chip::app::Clusters::OnOff::Id &&
+        attribute_id == chip::app::Clusters::OnOff::Attributes::OnOff::Id &&
+        !g_bridge.updating_from_thread) {
+        BridgeLock lock;
+        g_bridge.queue_cmd(endpoint_id, val->val.b);
+    }
+
     return ESP_OK;
 }
 
@@ -58,6 +76,57 @@ static esp_err_t app_identification_cb(identification::callback_type_t type,
 {
     ESP_LOGI(TAG, "Identification: endpoint=%d, effect=%d", endpoint_id, effect_id);
     return ESP_OK;
+}
+
+// Boot button task - monitors for factory reset gesture
+// Hold 3s = erase bridge data, hold 6s = full factory reset
+static void boot_button_task(void *arg)
+{
+    // Configure GPIO
+    gpio_set_direction(BOOT_BUTTON_GPIO, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(BOOT_BUTTON_GPIO, GPIO_PULLUP_ONLY);
+
+    ESP_LOGI(TAG, "Boot button task started (GPIO%d)", BOOT_BUTTON_GPIO);
+
+    for (;;) {
+        // Wait for button press
+        if (gpio_get_level(BOOT_BUTTON_GPIO) == 0) {
+            ESP_LOGW(TAG, "Boot button detected - hold 3s for bridge reset, 6s for factory reset...");
+            int held_ms = 0;
+            bool bridge_reset_logged = false;
+
+            while (gpio_get_level(BOOT_BUTTON_GPIO) == 0) {
+                vTaskDelay(pdMS_TO_TICKS(100));
+                held_ms += 100;
+
+                if (held_ms >= BOOT_BUTTON_HOLD_MS && !bridge_reset_logged) {
+                    ESP_LOGW(TAG, "3s - release now for bridge reset, keep holding for factory reset...");
+                    bridge_reset_logged = true;
+                }
+
+                if (held_ms >= BOOT_BUTTON_HOLD_MS * 2) {
+                    // 6 seconds - full factory reset
+                    ESP_LOGW(TAG, "Factory reset - erasing all NVS...");
+                    nvs_flash_erase();
+                    ESP_LOGW(TAG, "All NVS erased. Restarting...");
+                    vTaskDelay(pdMS_TO_TICKS(500));
+                    esp_restart();
+                }
+            }
+
+            // Button released - check what action to take
+            if (held_ms >= BOOT_BUTTON_HOLD_MS) {
+                ESP_LOGW(TAG, "Erasing bridge device data...");
+                bridge_nvs_erase_all();
+                ESP_LOGW(TAG, "Bridge data erased. Restarting...");
+                vTaskDelay(pdMS_TO_TICKS(500));
+                esp_restart();
+            } else {
+                ESP_LOGI(TAG, "Button released - cancelled");
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));  // Poll interval
+    }
 }
 
 // Thread message callback
@@ -74,45 +143,8 @@ static void on_thread_message(const thread_comms_message_t *msg)
              r->has_humidity ? r->humidity : 0,
              r->has_relay_state ? (r->relay_state ? "ON" : "OFF") : "N/A");
 
-    // Get hex suffix for NVS lookup
-    const char *hex = bridge_nvs_get_hex_suffix(r->device_id);
-    if (!hex) {
-        ESP_LOGW(TAG, "Invalid device_id format: %s", r->device_id);
-        return;
-    }
-
     BridgeLock lock;
-
-    // Try to load existing device
-    auto existing = bridge_nvs_load_device(hex);
-
-    BridgeDeviceState device;
-    if (existing.has_value()) {
-        device = existing.value();
-        ESP_LOGI(TAG, "Found existing device: %s (endpoint %u)", device.device_id.c_str(), device.endpoint_id);
-    } else {
-        // New device - allocate endpoint ID
-        device.device_id = r->device_id;
-        device.endpoint_id = bridge_nvs_alloc_endpoint_id();
-        ESP_LOGI(TAG, "New device registered: %s (endpoint %u)", device.device_id.c_str(), device.endpoint_id);
-    }
-
-    // Update sensor state from report
-    if (r->has_temperature) {
-        device.temperature = r->temperature;
-    }
-    if (r->has_humidity) {
-        device.humidity = r->humidity;
-    }
-    if (r->has_relay_state) {
-        device.relay_state = r->relay_state;
-    }
-
-    // Save to NVS
-    esp_err_t err = bridge_nvs_save_device(device);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to save device: %s", esp_err_to_name(err));
-    }
+    g_bridge.on_report(r);
 }
 
 extern "C" void app_main(void)
@@ -137,22 +169,15 @@ extern "C" void app_main(void)
     }
 
     /* Bridge state mutex and NVS */
-    s_bridge_mutex = xSemaphoreCreateMutex();
+    s_bridge_mutex = xSemaphoreCreateRecursiveMutex();
     if (!s_bridge_mutex) {
         ESP_LOGE(TAG, "Failed to create bridge mutex");
         return;
     }
     ESP_ERROR_CHECK(bridge_nvs_init());
 
-    /* Log existing devices from NVS */
-    {
-        BridgeLock lock;
-        auto devices = bridge_nvs_load_all_devices();
-        ESP_LOGI(TAG, "Loaded %zu devices from NVS", devices.size());
-        for (const auto &dev : devices) {
-            ESP_LOGI(TAG, "  - %s (endpoint %u)", dev.device_id.c_str(), dev.endpoint_id);
-        }
-    }
+    /* Start boot button monitor task (checks for factory reset gesture) */
+    xTaskCreate(boot_button_task, "boot_btn", 2048, NULL, 5, NULL);
 
     /* ESP-IDF networking stack */
     esp_vfs_eventfd_config_t eventfd_config = { .max_fds = 3 };
@@ -160,24 +185,14 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    /* Thread networking and comms */
-    thread_comms_set_callback(on_thread_message);
-
-    thread_comms_config_t comms_cfg = {
-        .device_id = device_name,
-        .source = THREAD_COMMS_SOURCE_ROUTER,
-#if CONFIG_OPENTHREAD_RADIO_SPINEL_UART
-        .use_uart_rcp = true,
-        .uart = {
-            .port = 1,
-            .tx_pin = 18,
-            .rx_pin = 17,
-        },
-#else
-        .use_uart_rcp = false,
-#endif
-    };
-    ESP_ERROR_CHECK(thread_comms_init(&comms_cfg));
+    /* Silence verbose Matter logs (before Matter starts) */
+    esp_log_level_set("chip", ESP_LOG_WARN);
+    esp_log_level_set("chip[IM]", ESP_LOG_WARN);
+    esp_log_level_set("chip[EM]", ESP_LOG_WARN);
+    esp_log_level_set("chip[DMG]", ESP_LOG_WARN);
+    esp_log_level_set("chip[DIS]", ESP_LOG_WARN);
+    esp_log_level_set("chip[DL]", ESP_LOG_WARN);
+    esp_log_level_set("chip[SVR]", ESP_LOG_WARN);
 
     /* Create Matter node */
     ESP_LOGI(TAG, "Creating Matter node...");
@@ -205,8 +220,35 @@ extern "C" void app_main(void)
     }
     ESP_LOGI(TAG, "Matter started - ready for commissioning!");
 
-    /* Keep running */
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(60000));
+    /* Initialize bridge state (after Matter starts) */
+    {
+        BridgeLock lock;
+        uint16_t aggregator_id = endpoint::get_id(aggregator);
+        err = g_bridge.init(node, aggregator_id);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize bridge state: %s", esp_err_to_name(err));
+            return;
+        }
     }
+    ESP_LOGI(TAG, "Bridge state initialized");
+
+    /* Thread networking and comms (after bridge is ready to receive callbacks) */
+    thread_comms_set_callback(on_thread_message);
+
+    thread_comms_config_t comms_cfg = {
+        .device_id = device_name,
+        .source = THREAD_COMMS_SOURCE_ROUTER,
+#if CONFIG_OPENTHREAD_RADIO_SPINEL_UART
+        .use_uart_rcp = true,
+        .uart = {
+            .port = 1,
+            .tx_pin = 18,
+            .rx_pin = 17,
+        },
+#else
+        .use_uart_rcp = false,
+#endif
+    };
+    ESP_ERROR_CHECK(thread_comms_init(&comms_cfg));
+    ESP_LOGI(TAG, "Thread comms initialized - ready for devices!");
 }
