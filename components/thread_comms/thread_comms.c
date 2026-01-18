@@ -20,6 +20,11 @@
 #include "openthread/thread.h"
 #include "openthread/udp.h"
 
+/* Compatibility: older OpenThread used OT_NETIF_THREAD, newer uses OT_NETIF_THREAD_HOST */
+#ifndef OT_NETIF_THREAD
+#define OT_NETIF_THREAD OT_NETIF_THREAD_HOST
+#endif
+
 /* Nanopb */
 #include "pb_encode.h"
 #include "pb_decode.h"
