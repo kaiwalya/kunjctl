@@ -15,10 +15,13 @@ typedef struct _BridgeNvsGlobal {
     uint32_t next_endpoint_id; /* Monotonic counter for endpoint assignment */
 } BridgeNvsGlobal;
 
-/* Stored at key "tr-dev-{hex}" e.g. "tr-dev-a3f2" */
+/* Stored at key "tr-dev-{hex}" e.g. "tr-dev-a3f2"
+ Each Thread device can have up to 3 Matter endpoints (one per capability) */
 typedef struct _BridgeNvsDevice {
     char device_id[18]; /* Full device name: "vivid-falcon-a3f2" */
-    uint32_t endpoint_id; /* Assigned Matter endpoint ID */
+    /* Endpoint IDs for each capability (0 = not present)
+ Field 2 was previously "endpoint_id" - kept for backward compat (maps to plug) */
+    uint32_t plug_endpoint_id;
     /* Last known sensor state (optional fields) */
     bool has_temperature;
     float temperature;
@@ -26,6 +29,8 @@ typedef struct _BridgeNvsDevice {
     float humidity;
     bool has_relay_state;
     bool relay_state;
+    uint32_t temp_endpoint_id;
+    uint32_t humidity_endpoint_id;
 } BridgeNvsDevice;
 
 
@@ -35,17 +40,19 @@ extern "C" {
 
 /* Initializer values for message structs */
 #define BridgeNvsGlobal_init_default             {0}
-#define BridgeNvsDevice_init_default             {"", 0, false, 0, false, 0, false, 0}
+#define BridgeNvsDevice_init_default             {"", 0, false, 0, false, 0, false, 0, 0, 0}
 #define BridgeNvsGlobal_init_zero                {0}
-#define BridgeNvsDevice_init_zero                {"", 0, false, 0, false, 0, false, 0}
+#define BridgeNvsDevice_init_zero                {"", 0, false, 0, false, 0, false, 0, 0, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define BridgeNvsGlobal_next_endpoint_id_tag     1
 #define BridgeNvsDevice_device_id_tag            1
-#define BridgeNvsDevice_endpoint_id_tag          2
+#define BridgeNvsDevice_plug_endpoint_id_tag     2
 #define BridgeNvsDevice_temperature_tag          3
 #define BridgeNvsDevice_humidity_tag             4
 #define BridgeNvsDevice_relay_state_tag          5
+#define BridgeNvsDevice_temp_endpoint_id_tag     6
+#define BridgeNvsDevice_humidity_endpoint_id_tag 7
 
 /* Struct field encoding specification for nanopb */
 #define BridgeNvsGlobal_FIELDLIST(X, a) \
@@ -55,10 +62,12 @@ X(a, STATIC,   SINGULAR, UINT32,   next_endpoint_id,   1)
 
 #define BridgeNvsDevice_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, STRING,   device_id,         1) \
-X(a, STATIC,   SINGULAR, UINT32,   endpoint_id,       2) \
+X(a, STATIC,   SINGULAR, UINT32,   plug_endpoint_id,   2) \
 X(a, STATIC,   OPTIONAL, FLOAT,    temperature,       3) \
 X(a, STATIC,   OPTIONAL, FLOAT,    humidity,          4) \
-X(a, STATIC,   OPTIONAL, BOOL,     relay_state,       5)
+X(a, STATIC,   OPTIONAL, BOOL,     relay_state,       5) \
+X(a, STATIC,   SINGULAR, UINT32,   temp_endpoint_id,   6) \
+X(a, STATIC,   SINGULAR, UINT32,   humidity_endpoint_id,   7)
 #define BridgeNvsDevice_CALLBACK NULL
 #define BridgeNvsDevice_DEFAULT NULL
 
@@ -71,7 +80,7 @@ extern const pb_msgdesc_t BridgeNvsDevice_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define BRIDGE_NVS_PB_H_MAX_SIZE                 BridgeNvsDevice_size
-#define BridgeNvsDevice_size                     37
+#define BridgeNvsDevice_size                     49
 #define BridgeNvsGlobal_size                     6
 
 #ifdef __cplusplus

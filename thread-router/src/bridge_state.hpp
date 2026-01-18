@@ -12,18 +12,22 @@ extern "C" {
 #include "thread_comms.h"
 }
 
-// We use standard Matter device type IDs:
-// - ESP_MATTER_TEMPERATURE_SENSOR_DEVICE_TYPE_ID for sensor-only devices
-// - ESP_MATTER_ON_OFF_PLUG_IN_UNIT_DEVICE_TYPE_ID for devices with relay
+// Each Thread device maps to up to 3 Matter endpoints:
+// - On/Off Plug-in Unit (for relay control)
+// - Temperature Sensor
+// - Humidity Sensor
 
 struct BridgeDevice {
     BridgeDeviceState persisted;    // From our NVS
 
-    // Runtime only (not persisted)
-    esp_matter_bridge::device_t *matter_device;
-    int64_t last_seen_ms;
-    bool cmd_pending;
-    bool cmd_relay_state;
+    // Runtime only - Matter device handles for each capability
+    esp_matter_bridge::device_t *plug_device = nullptr;
+    esp_matter_bridge::device_t *temp_device = nullptr;
+    esp_matter_bridge::device_t *humidity_device = nullptr;
+
+    int64_t last_seen_ms = 0;
+    bool cmd_pending = false;
+    bool cmd_relay_state = false;
 };
 
 class BridgeState {
@@ -43,7 +47,7 @@ public:
 
     // Lookup
     BridgeDevice *find_by_device_id(const char *device_id);
-    BridgeDevice *find_by_endpoint_id(uint16_t endpoint_id);
+    BridgeDevice *find_by_plug_endpoint(uint16_t endpoint_id);
 
     // Device type callback for esp_matter_bridge
     static esp_err_t device_type_callback(esp_matter::endpoint_t *ep,
@@ -55,9 +59,13 @@ private:
     uint16_t aggregator_endpoint_id_;
     std::vector<BridgeDevice> devices_;
 
-    // Matter endpoint lifecycle
-    void create_matter_endpoint(BridgeDevice &dev, uint32_t device_type_id);
-    void resume_matter_endpoint(BridgeDevice &dev);
+    // Matter endpoint lifecycle - creates/resumes all endpoints for a device
+    void create_endpoints_for_device(BridgeDevice &dev, const thread_comms_report_t *report);
+    void resume_endpoints_for_device(BridgeDevice &dev);
+
+    // Single endpoint helpers
+    esp_matter_bridge::device_t *create_single_endpoint(BridgeDevice &dev, uint32_t device_type_id, const char *label_suffix);
+    esp_matter_bridge::device_t *resume_single_endpoint(BridgeDevice &dev, uint16_t endpoint_id, const char *label_suffix);
 
     // Attribute updates
     void update_matter_attributes(BridgeDevice &dev);

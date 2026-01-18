@@ -115,7 +115,9 @@ esp_err_t bridge_nvs_save_device(const BridgeDeviceState &device)
     // Convert to nanopb struct
     BridgeNvsDevice pb_device = BridgeNvsDevice_init_zero;
     strncpy(pb_device.device_id, device.device_id.c_str(), sizeof(pb_device.device_id) - 1);
-    pb_device.endpoint_id = device.endpoint_id;
+    pb_device.plug_endpoint_id = device.plug_endpoint_id;
+    pb_device.temp_endpoint_id = device.temp_endpoint_id;
+    pb_device.humidity_endpoint_id = device.humidity_endpoint_id;
 
     if (device.temperature.has_value()) {
         pb_device.has_temperature = true;
@@ -151,7 +153,9 @@ esp_err_t bridge_nvs_save_device(const BridgeDeviceState &device)
         return err;
     }
 
-    ESP_LOGI(TAG, "Saved device: %s (endpoint %u)", device.device_id.c_str(), device.endpoint_id);
+    ESP_LOGI(TAG, "Saved device: %s (plug=%u, temp=%u, humidity=%u)",
+             device.device_id.c_str(),
+             device.plug_endpoint_id, device.temp_endpoint_id, device.humidity_endpoint_id);
     return ESP_OK;
 }
 
@@ -182,7 +186,9 @@ std::optional<BridgeDeviceState> bridge_nvs_load_device(const char *hex_suffix)
     // Convert to C++ struct
     BridgeDeviceState device;
     device.device_id = pb_device.device_id;
-    device.endpoint_id = static_cast<uint16_t>(pb_device.endpoint_id);
+    device.plug_endpoint_id = static_cast<uint16_t>(pb_device.plug_endpoint_id);
+    device.temp_endpoint_id = static_cast<uint16_t>(pb_device.temp_endpoint_id);
+    device.humidity_endpoint_id = static_cast<uint16_t>(pb_device.humidity_endpoint_id);
 
     if (pb_device.has_temperature) {
         device.temperature = pb_device.temperature;

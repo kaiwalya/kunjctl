@@ -8,10 +8,16 @@
 #include "esp_err.h"
 
 // Device state for bridge registry
+// Each Thread device can have up to 3 Matter endpoints (one per capability)
 struct BridgeDeviceState {
     std::string device_id;          // "vivid-falcon-a3f2"
-    uint16_t endpoint_id;
 
+    // Endpoint IDs for each capability (0 = not present)
+    uint16_t plug_endpoint_id = 0;
+    uint16_t temp_endpoint_id = 0;
+    uint16_t humidity_endpoint_id = 0;
+
+    // Last known sensor values
     std::optional<float> temperature;
     std::optional<float> humidity;
     std::optional<bool> relay_state;

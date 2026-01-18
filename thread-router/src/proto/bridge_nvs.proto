@@ -6,9 +6,15 @@ message BridgeNvsGlobal {
 }
 
 // Stored at key "tr-dev-{hex}" e.g. "tr-dev-a3f2"
+// Each Thread device can have up to 3 Matter endpoints (one per capability)
 message BridgeNvsDevice {
     string device_id = 1;           // Full device name: "vivid-falcon-a3f2"
-    uint32 endpoint_id = 2;         // Assigned Matter endpoint ID
+
+    // Endpoint IDs for each capability (0 = not present)
+    // Field 2 was previously "endpoint_id" - kept for backward compat (maps to plug)
+    uint32 plug_endpoint_id = 2;
+    uint32 temp_endpoint_id = 6;
+    uint32 humidity_endpoint_id = 7;
 
     // Last known sensor state (optional fields)
     optional float temperature = 3;
