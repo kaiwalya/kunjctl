@@ -20,8 +20,8 @@
 #include "openthread/thread.h"
 #include "openthread/udp.h"
 
-/* Compatibility: older OpenThread used OT_NETIF_THREAD, newer uses OT_NETIF_THREAD_HOST */
-#ifndef OT_NETIF_THREAD
+/* Compatibility: older OpenThread uses OT_NETIF_THREAD, newer uses OT_NETIF_THREAD_HOST */
+#if !defined(OT_NETIF_THREAD) && defined(OT_NETIF_THREAD_HOST)
 #define OT_NETIF_THREAD OT_NETIF_THREAD_HOST
 #endif
 

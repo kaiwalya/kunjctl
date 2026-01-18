@@ -282,15 +282,20 @@ void BridgeState::on_report(const thread_comms_report_t *report)
                  dev->persisted.device_id.c_str(), esp_err_to_name(err));
     }
 
-    // Update Matter attributes
-    updating_from_thread = true;
-    update_matter_attributes(*dev);
-    updating_from_thread = false;
-
     // Send any pending command
+    // So it creates a discrepancy in what matter's world view is vs what the thread device state will be
     if (dev->cmd_pending) {
         send_pending_command(*dev);
         dev->cmd_pending = false;
+    }
+    // We dont want to update matter attributes if there is a command pending,
+    // This is because the command will likely change the state. 
+    else {
+        // Update Matter attributes
+        updating_from_thread = true;
+        update_matter_attributes(*dev);
+        updating_from_thread = false;
+
     }
 }
 
