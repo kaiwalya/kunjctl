@@ -20,11 +20,6 @@
 #include "openthread/thread.h"
 #include "openthread/udp.h"
 
-/* Compatibility: older OpenThread uses OT_NETIF_THREAD, newer uses OT_NETIF_THREAD_HOST */
-#if !defined(OT_NETIF_THREAD) && defined(OT_NETIF_THREAD_HOST)
-#define OT_NETIF_THREAD OT_NETIF_THREAD_HOST
-#endif
-
 /* Nanopb */
 #include "pb_encode.h"
 #include "pb_decode.h"
@@ -204,7 +199,7 @@ static esp_err_t start_udp(void)
     otSockAddr sockaddr;
     memset(&sockaddr, 0, sizeof(sockaddr));
     sockaddr.mPort = THREAD_COMMS_PORT;
-    err = otUdpBind(instance, &g_socket, &sockaddr, OT_NETIF_THREAD);
+    err = otUdpBind(instance, &g_socket, &sockaddr, OT_NETIF_THREAD_HOST);
     if (err != OT_ERROR_NONE) {
         ESP_LOGE(TAG, "Failed to bind UDP socket: %d", err);
         otUdpClose(instance, &g_socket);
