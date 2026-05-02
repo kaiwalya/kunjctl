@@ -85,11 +85,56 @@ menu "Outputs"
         help
             Enable relay control output.
 
+    choice RELAY_TYPE
+        prompt "Relay type"
+        depends on RELAY_ENABLED
+        default RELAY_TYPE_LEVEL
+
+        config RELAY_TYPE_LEVEL
+            bool "Level-driven (single coil, GPIO holds state)"
+            help
+                Standard relay held energized by a single GPIO. The pin is
+                driven high for ON, low for OFF, and held across deep sleep
+                via gpio_hold_en. Cuts power to the coil = relay opens.
+
+        config RELAY_TYPE_LATCHING
+            bool "Latching (dual coil, pulsed)"
+            help
+                Bistable relay with separate SET and RESET coils. A short
+                pulse on SET turns it ON; a short pulse on RESET turns it
+                OFF. Holds its state mechanically with no power. Both pins
+                must never be driven high simultaneously.
+    endchoice
+
     config RELAY_GPIO
         int "Relay GPIO"
         default 0
-        depends on RELAY_ENABLED
+        depends on RELAY_ENABLED && RELAY_TYPE_LEVEL
         help
             GPIO for the relay control signal.
+
+    config RELAY_SET_GPIO
+        int "Relay SET coil GPIO"
+        default 0
+        depends on RELAY_ENABLED && RELAY_TYPE_LATCHING
+        help
+            GPIO that pulses the SET coil to turn the relay ON.
+
+    config RELAY_RESET_GPIO
+        int "Relay RESET coil GPIO"
+        default 1
+        depends on RELAY_ENABLED && RELAY_TYPE_LATCHING
+        help
+            GPIO that pulses the RESET coil to turn the relay OFF.
+            Must be different from RELAY_SET_GPIO.
+
+    config RELAY_PULSE_MS
+        int "Latching coil pulse duration (ms)"
+        default 20
+        depends on RELAY_ENABLED && RELAY_TYPE_LATCHING
+        help
+            How long to energize a coil to flip the relay. Check your
+            relay's datasheet for the minimum pulse width (typically
+            10-50ms). Longer is safer but wears the coil faster.
 
 endmenu

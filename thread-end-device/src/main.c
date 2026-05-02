@@ -6,6 +6,7 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_sleep.h"
+#include "esp_system.h"
 #include "esp_vfs_eventfd.h"
 #include "nvs_flash.h"
 
@@ -103,9 +104,19 @@ void app_main(void)
     status_it_worked();
     status_set_busy(false);
 
-    /* Initialize sensors and relay */
+    /* Initialize sensors and relay.
+     *
+     * On cold boot (power-on, hard reset, factory reset) RTC memory is
+     * cleared and g_relay_state initializes to false — but for a latching
+     * relay the physical contacts may still be in whatever position they
+     * were in before power was lost. Pass force_resync=true so the relay
+     * driver pulses the appropriate coil to bring hardware into agreement
+     * with software. On a deep-sleep wake RTC memory is preserved and the
+     * relay is still in the position we left it, so we skip the resync
+     * pulse to save coil wear. */
     sensors_t *sensors = sensors_init();
-    g_relay = relay_init(g_relay_state);
+    bool is_cold_boot = (esp_reset_reason() != ESP_RST_DEEPSLEEP);
+    g_relay = relay_init(g_relay_state, is_cold_boot);
 
     /* Duty cycle: active for ACTIVE_MS, then deep sleep for SLEEP_MS */
     #define ACTIVE_MS  3000
