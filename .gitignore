@@ -5,3 +5,6 @@ managed_components
 .claude
 .vscode
 .idea
+
+# ESP-IDF Installer Manager (per-machine config, not part of the project)
+eim_config.toml
