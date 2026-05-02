@@ -1,0 +1,13 @@
+# KiCad — local/transient files
+*.kicad_prl
+*-backups/
+*.lck
+~*.lck
+*.bak
+
+# KiCad History plugin (local incremental backups)
+.history/
+
+# Common KiCad fabrication outputs (regenerated)
+gerbers/
+fab/
